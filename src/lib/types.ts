@@ -38,7 +38,7 @@ export interface Complaint {
   escalationNotes?: string;
 }
 
-export type UserRole = 'patient' | 'hospital_admin' | 'health_department_official';
+export type UserRole = 'patient' | 'hospital_admin' | 'health_department_official' | 'platform_admin';
 
 export interface BedAvailability {
   hospitalId: string;
@@ -49,4 +49,23 @@ export interface BedAvailability {
   lastUpdated: string; // ISO date string
 }
 
+export interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  issuedAt: string; // ISO date string
+  targetAudience: 'all_hospitals' | 'specific_hospitals'; // Add more if needed
+  hospitalIds?: string[]; // if targetAudience is specific_hospitals
+}
+
+export interface PatientAdmission {
+  id: string;
+  hospitalId: string;
+  patientName: string; // For simplicity, in a real app use a secure ID
+  admissionDate: string; // ISO date string
+  reason: string;
+  bedType: 'icu' | 'oxygen' | 'ventilator' | 'general';
+  status: 'admitted' | 'discharged' | 'transferred';
+  notes?: string;
+}
     

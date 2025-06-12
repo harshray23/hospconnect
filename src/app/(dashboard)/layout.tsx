@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -17,7 +18,7 @@ import {
   SidebarMenuSubItem,
   SidebarInset,
 } from '@/components/ui/sidebar';
-import { Hospital, LayoutDashboard, UserCircle, MessageSquareText, AlertOctagon, LogOut, BedDouble, Stethoscope } from 'lucide-react';
+import { Hospital, LayoutDashboard, UserCircle, MessageSquareText, AlertOctagon, LogOut, BedDouble, Stethoscope, UserPlus } from 'lucide-react'; // Added UserPlus
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -25,7 +26,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 const user = {
   name: 'Dr. Jane Doe',
   email: 'jane.doe@hospital.com',
-  role: 'hospital_admin', // or 'patient'
+  role: 'hospital_admin', // or 'patient' or 'platform_admin'
   avatarUrl: 'https://placehold.co/100x100.png'
 };
 // const user = { name: 'John Patient', email: 'john.patient@email.com', role: 'patient', avatarUrl: 'https://placehold.co/100x100.png' };
@@ -41,6 +42,7 @@ const patientNavItems = [
 const hospitalAdminNavItems = [
   { href: '/hospital/dashboard', label: 'Overview', icon: <LayoutDashboard /> },
   { href: '/hospital/beds', label: 'Bed Availability', icon: <BedDouble /> },
+  { href: '/hospital/admissions', label: 'Manage Admissions', icon: <UserPlus /> }, // New Item
   { href: '/hospital/bookings', label: 'Manage Bookings', icon: <Stethoscope /> },
   { href: '/hospital/feedback', label: 'Patient Feedback', icon: <MessageSquareText /> },
   { href: '/hospital/complaints', label: 'Manage Complaints', icon: <AlertOctagon /> },
@@ -53,6 +55,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  // Basic role switching for nav items, assuming platform_admin might see hospital items or have their own.
+  // For now, platform_admin isn't handled by this specific sidebar directly as they have their own layout.
   const navItems = user.role === 'hospital_admin' ? hospitalAdminNavItems : patientNavItems;
   const baseDashboardPath = user.role === 'hospital_admin' ? '/hospital/dashboard' : '/patient/dashboard';
 
@@ -96,6 +100,14 @@ export default function DashboardLayout({
               <LogOut className="h-5 w-5 mr-2 group-data-[collapsible=icon]:mr-0" />
               <span className="group-data-[collapsible=icon]:hidden">Logout</span>
             </Button>
+            {user.role === 'hospital_admin' && ( // Example: Link to platform admin if user has rights.
+                 <Button variant="link" className="w-full justify-start group-data-[collapsible=icon]:justify-center text-xs mt-2" asChild>
+                    <Link href="/platform-admin/announcements">
+                        <span className="group-data-[collapsible=icon]:hidden">Platform Admin Area</span>
+                        <Hospital className="h-4 w-4 group-data-[collapsible=icon]:block hidden"/>
+                    </Link>
+                 </Button>
+            )}
           </SidebarFooter>
         </Sidebar>
         <SidebarInset className="p-4 md:p-8 flex-1 bg-background overflow-y-auto">
