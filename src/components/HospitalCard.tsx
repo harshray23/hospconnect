@@ -1,3 +1,4 @@
+
 import type { Hospital } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -39,7 +40,7 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
           width={600}
           height={400}
           className="w-full h-48 object-cover"
-          data-ai-hint="hospital exterior"
+          data-ai-hint={hospital.dataAiHint || "hospital exterior"}
         />
         {hospital.rating && (
           <Badge variant="default" className="absolute top-2 right-2 bg-primary/80 backdrop-blur-sm">
@@ -96,3 +97,5 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
     </Card>
   );
 }
+
+    

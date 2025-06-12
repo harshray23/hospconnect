@@ -1,3 +1,4 @@
+
 export interface Hospital {
   id: string;
   name: string;
@@ -12,6 +13,7 @@ export interface Hospital {
   };
   contact?: string;
   imageUrl?: string;
+  dataAiHint?: string; // For placeholder image search keywords
   rating?: number; // 1-5
   services?: string[]; // e.g. "24/7 Emergency", "Pharmacy"
   distance?: string; // for display, e.g. "2.5km"
@@ -46,3 +48,5 @@ export interface BedAvailability {
   general: { available: number; total: number };
   lastUpdated: string; // ISO date string
 }
+
+    

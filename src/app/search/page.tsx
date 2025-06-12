@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -26,6 +27,7 @@ const mockHospitals: Hospital[] = [
       general: { available: 25, total: 100 },
     },
     imageUrl: 'https://placehold.co/600x400.png',
+    dataAiHint: "hospital building",
     rating: 4.5,
     services: ["24/7 Emergency", "Pharmacy", "Radiology"],
     contact: "555-1234",
@@ -44,6 +46,7 @@ const mockHospitals: Hospital[] = [
       general: { available: 40, total: 80 },
     },
     imageUrl: 'https://placehold.co/600x400.png',
+    dataAiHint: "modern hospital",
     rating: 4.2,
     services: ["Maternity Care", "Physical Therapy"],
     contact: "555-5678",
@@ -62,6 +65,7 @@ const mockHospitals: Hospital[] = [
       general: { available: 15, total: 30 },
     },
     imageUrl: 'https://placehold.co/600x400.png',
+    dataAiHint: "clinic building",
     rating: 3.9,
     services: ["Vaccinations", "Urgent Care"],
     contact: "555-9012",
@@ -69,10 +73,13 @@ const mockHospitals: Hospital[] = [
   },
 ];
 
+const ALL_SPECIALTIES_VALUE = "_all_specialties_";
+const ANY_BED_TYPE_VALUE = "_any_bed_type_";
+
 export default function SearchPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [specialtyFilter, setSpecialtyFilter] = useState('');
-  const [bedTypeFilter, setBedTypeFilter] = useState('');
+  const [specialtyFilter, setSpecialtyFilter] = useState(ALL_SPECIALTIES_VALUE);
+  const [bedTypeFilter, setBedTypeFilter] = useState(ANY_BED_TYPE_VALUE);
   const [locationFilter, setLocationFilter] = useState('');
   const [filteredHospitals, setFilteredHospitals] = useState<Hospital[]>(mockHospitals);
   const [recommendedHospitals, setRecommendedHospitals] = useState<string[] | null>(null);
@@ -83,10 +90,10 @@ export default function SearchPage() {
     if (searchTerm) {
       hospitals = hospitals.filter(h => h.name.toLowerCase().includes(searchTerm.toLowerCase()));
     }
-    if (specialtyFilter) {
+    if (specialtyFilter && specialtyFilter !== ALL_SPECIALTIES_VALUE) {
       hospitals = hospitals.filter(h => h.specialties.includes(specialtyFilter));
     }
-    if (bedTypeFilter) {
+    if (bedTypeFilter && bedTypeFilter !== ANY_BED_TYPE_VALUE) {
       hospitals = hospitals.filter(h => {
         const bed = bedTypeFilter as keyof Hospital['beds'];
         return h.beds[bed] && h.beds[bed].available > 0;
@@ -124,7 +131,6 @@ export default function SearchPage() {
             placeholder="Enter city or area..."
             value={locationFilter}
             onChange={e => setLocationFilter(e.target.value)}
-            icon={<MapPin className="h-4 w-4 text-muted-foreground" />}
           />
           <Select value={specialtyFilter} onValueChange={setSpecialtyFilter}>
             <SelectTrigger>
@@ -132,7 +138,7 @@ export default function SearchPage() {
               <SelectValue placeholder="Filter by specialty" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Specialties</SelectItem>
+              <SelectItem value={ALL_SPECIALTIES_VALUE}>All Specialties</SelectItem>
               {allSpecialties.map(spec => (
                 <SelectItem key={spec} value={spec}>{spec}</SelectItem>
               ))}
@@ -144,7 +150,7 @@ export default function SearchPage() {
               <SelectValue placeholder="Filter by bed type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Any Available Bed</SelectItem>
+              <SelectItem value={ANY_BED_TYPE_VALUE}>Any Available Bed</SelectItem>
               <SelectItem value="icu">ICU Bed</SelectItem>
               <SelectItem value="oxygen">Oxygen Bed</SelectItem>
               <SelectItem value="ventilator">Ventilator Bed</SelectItem>
@@ -152,10 +158,10 @@ export default function SearchPage() {
             </SelectContent>
           </Select>
         </div>
-         <Button onClick={() => { /* Implement reset logic */
+         <Button onClick={() => {
             setSearchTerm('');
-            setSpecialtyFilter('');
-            setBedTypeFilter('');
+            setSpecialtyFilter(ALL_SPECIALTIES_VALUE);
+            setBedTypeFilter(ANY_BED_TYPE_VALUE);
             setLocationFilter('');
          }}>
             <Filter className="mr-2 h-4 w-4" /> Reset Filters
@@ -227,3 +233,5 @@ export default function SearchPage() {
     </div>
   );
 }
+
+    
