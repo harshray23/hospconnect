@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import *_as_z from "zod";
+import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Form,
