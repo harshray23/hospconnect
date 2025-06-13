@@ -17,10 +17,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BedDouble, Loader2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Added useEffect
 import { db, auth } from "@/lib/firebase";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
-import type { BedAvailabilityData, BedAvailabilityUpdateData } from "@/lib/types";
+import { doc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore"; // Added Timestamp
+import type { BedAvailabilityData, HospitalBedUpdatePayload } from "@/lib/types";
 
 
 const bedInputSchema = z.object({
@@ -40,7 +40,7 @@ const availabilitySchema = z.object({
 
 interface BedAvailabilityFormProps {
   currentAvailability: BedAvailabilityData;
-  hospitalId: string; // ID of the hospital being updated
+  hospitalId: string; 
   onUpdateSuccess: (updatedData: BedAvailabilityData) => void;
 }
 
@@ -54,7 +54,7 @@ export function BedAvailabilityForm({ currentAvailability, hospitalId, onUpdateS
   });
   
   // Sync form with prop changes if currentAvailability is fetched async
-  useState(() => {
+  useEffect(() => { // Changed useState to useEffect
     form.reset(currentAvailability);
   }, [currentAvailability, form]);
 
@@ -72,23 +72,28 @@ export function BedAvailabilityForm({ currentAvailability, hospitalId, onUpdateS
       setIsSubmitting(false);
       return;
     }
-    // Additional check: In a real app, verify if currentUser is admin for this hospitalId
+    // In a real app, verify if currentUser's custom claim or user profile indicates they are an admin for this hospitalId
 
     try {
       const hospitalDocRef = doc(db, "hospitals", hospitalId);
-      const updateData: { beds: BedAvailabilityData, lastBedUpdate: any } = {
+      // The schema has `lastUpdated` at the top level of the hospital document.
+      const updatePayload: HospitalBedUpdatePayload = { 
         beds: values,
-        lastBedUpdate: serverTimestamp(),
+        lastUpdated: serverTimestamp() as Timestamp // Ensure it's treated as a server timestamp
       };
-      await updateDoc(hospitalDocRef, updateData);
+      
+      await updateDoc(hospitalDocRef, {
+        beds: updatePayload.beds,
+        lastUpdated: updatePayload.lastUpdated // This should be serverTimestamp()
+      });
       
       toast({
         title: "Update Successful",
         description: "Bed availability has been updated.",
         variant: "default",
       });
-      onUpdateSuccess(values); // Notify parent component
-      form.reset(values); // Keep form updated with latest successful submission
+      onUpdateSuccess(values); 
+      form.reset(values); 
     } catch (error) {
       console.error("Error updating bed availability:", error);
       toast({

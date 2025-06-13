@@ -7,10 +7,12 @@ import { useEffect, useState } from "react";
 import type { Hospital, BedAvailabilityData } from "@/lib/types";
 import { db, auth } from "@/lib/firebase";
 import { doc, getDoc, Timestamp } from "firebase/firestore";
-import { Loader2, ServerCrash, AlertTriangle } from "lucide-react";
+import { Loader2, ServerCrash, AlertTriangle, CalendarClock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 
 // In a real app, get this from the logged-in hospital admin's context/profile
+// For now, this should come from a UserProfile document in Firestore for the logged-in hospital admin
 const MOCK_HOSPITAL_ID = "CityGeneralAnytown"; // Replace with actual logic to get hospital ID
 
 export default function HospitalBedsPage() {
@@ -21,7 +23,7 @@ export default function HospitalBedsPage() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Placeholder for hospital ID - this should come from auth/user context
+  // Placeholder for hospital ID - this should come from auth/user context -> UserProfile.hospitalId
   const hospitalId = MOCK_HOSPITAL_ID; 
 
   useEffect(() => {
@@ -40,20 +42,20 @@ export default function HospitalBedsPage() {
         const hospitalSnap = await getDoc(hospitalDocRef);
 
         if (hospitalSnap.exists()) {
-          const hospitalData = hospitalSnap.data() as Hospital;
+          const hospitalData = hospitalSnap.data() as Hospital; // Cast to Hospital type
           setCurrentAvailability(hospitalData.beds);
           setHospitalName(hospitalData.name);
-          if (hospitalData.lastBedUpdate) {
-             const updateTimestamp = hospitalData.lastBedUpdate instanceof Timestamp 
-                ? hospitalData.lastBedUpdate.toDate() 
-                : new Date(hospitalData.lastBedUpdate as string);
-            setLastUpdated(updateTimestamp.toLocaleString());
+          if (hospitalData.lastUpdated) { // Changed from lastBedUpdate
+             const updateTimestamp = hospitalData.lastUpdated instanceof Timestamp 
+                ? hospitalData.lastUpdated.toDate() 
+                : new Date(hospitalData.lastUpdated as string);
+            setLastUpdated(format(updateTimestamp, "PPPp")); // Using format for better display
           } else {
             setLastUpdated("Not available");
           }
         } else {
           setError(`Hospital with ID ${hospitalId} not found.`);
-          toast({ title: "Not Found", description: `Hospital data could not be found.`, variant: "destructive" });
+          toast({ title: "Not Found", description: `Hospital data for '${hospitalId}' could not be found.`, variant: "destructive" });
         }
       } catch (err) {
         console.error("Error fetching bed availability:", err);
@@ -66,11 +68,10 @@ export default function HospitalBedsPage() {
 
     const currentUser = auth.currentUser;
     if (currentUser) {
-        // In a real app, you'd get the hospitalId associated with currentUser
-        // For now, we use the MOCK_HOSPITAL_ID
+        // In a real app, you'd fetch UserProfile for currentUser.uid,
+        // get their role and hospitalId if they are 'hospital' role.
         fetchBedAvailability();
     } else {
-        // Handle case where user is not logged in, or not a hospital admin
         setError("You must be logged in as a hospital administrator to manage bed availability.");
         setIsLoading(false);
         toast({ title: "Access Denied", description: "Login as hospital admin.", variant: "destructive"});
@@ -80,7 +81,7 @@ export default function HospitalBedsPage() {
 
   const handleUpdateSuccess = (updatedData: BedAvailabilityData) => {
     setCurrentAvailability(updatedData);
-    setLastUpdated(new Date().toLocaleString());
+    setLastUpdated(format(new Date(), "PPPp")); // Update with current time formatted
   };
 
   if (isLoading) {
@@ -122,21 +123,21 @@ export default function HospitalBedsPage() {
     );
   }
 
-
   return (
     <div className="space-y-6">
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="text-2xl font-headline">Manage Bed Availability for {hospitalName}</CardTitle>
-          <CardDescription>
-            Update real-time bed counts for your hospital departments. 
+          <CardDescription className="flex items-center">
+            <CalendarClock className="h-4 w-4 mr-2 text-muted-foreground" />
+            Update real-time bed counts for your hospital. 
             {lastUpdated && ` Last updated: ${lastUpdated}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <BedAvailabilityForm
             currentAvailability={currentAvailability}
-            hospitalId={hospitalId}
+            hospitalId={hospitalId} // Ensure hospitalId is passed
             onUpdateSuccess={handleUpdateSuccess}
           />
         </CardContent>

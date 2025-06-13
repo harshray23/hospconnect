@@ -14,23 +14,24 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+// RadioGroup and RadioGroupItem are not used in the star rating, can be removed if not needed elsewhere.
+// import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group" 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, Star, ServerCrash } from "lucide-react";
 import { useState, useEffect } from "react";
 import { db, auth } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
-import type { Hospital } from "@/lib/types"; // Import Hospital type
+import { collection, addDoc, serverTimestamp, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
+import type { Hospital } from "@/lib/types"; 
 
 const feedbackSchema = z.object({
   hospitalId: z.string({ required_error: "Please select a hospital." }).min(1, "Please select a hospital."),
-  rating: z.coerce.number().min(1, "Rating is required").max(5, "Rating cannot exceed 5"),
-  comments: z.string().min(10, { message: "Comments must be at least 10 characters." }).max(1000, "Comments cannot exceed 1000 characters."),
+  rating: z.coerce.number().min(1, "Rating is required (1-5 stars)").max(5, "Rating cannot exceed 5"),
+  comment: z.string().min(10, { message: "Comment must be at least 10 characters." }).max(1000, "Comment cannot exceed 1000 characters."), // Renamed from comments
 });
 
 export function FeedbackForm() {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHospitals, setIsLoadingHospitals] = useState(false); // Renamed for clarity
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [errorLoadingHospitals, setErrorLoadingHospitals] = useState<string | null>(null);
@@ -38,13 +39,19 @@ export function FeedbackForm() {
 
   useEffect(() => {
     const fetchHospitals = async () => {
-      setIsLoading(true);
+      setIsLoadingHospitals(true);
       setErrorLoadingHospitals(null);
       try {
         const hospitalsCollectionRef = collection(db, 'hospitals');
         const q = query(hospitalsCollectionRef, orderBy("name"));
         const hospitalSnapshot = await getDocs(q);
-        const fetchedHospitals: Hospital[] = hospitalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Hospital));
+        const fetchedHospitals: Hospital[] = hospitalSnapshot.docs.map(doc => ({ 
+          id: doc.id, 
+          ...doc.data(),
+          // Ensure location and beds are at least empty objects if undefined from Firestore
+          location: doc.data().location || { address: 'N/A' },
+          beds: doc.data().beds || { icu: {}, general: {}, oxygen: {}, ventilator: {} },
+         } as Hospital));
         setHospitals(fetchedHospitals);
       } catch (error) {
         console.error("Error fetching hospitals for feedback form:", error);
@@ -55,7 +62,7 @@ export function FeedbackForm() {
           variant: "destructive",
         });
       } finally {
-        setIsLoading(false);
+        setIsLoadingHospitals(false);
       }
     };
     fetchHospitals();
@@ -65,8 +72,8 @@ export function FeedbackForm() {
     resolver: zodResolver(feedbackSchema),
     defaultValues: {
       hospitalId: "",
-      rating: 0,
-      comments: "",
+      rating: 0, // Initialize with 0, user must select a rating
+      comment: "",
     },
   });
 
@@ -83,21 +90,33 @@ export function FeedbackForm() {
       setIsSubmitting(false);
       return;
     }
+    if (values.rating === 0) {
+        toast({
+            title: "Rating Required",
+            description: "Please select a star rating.",
+            variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+    }
+
 
     try {
       const selectedHospital = hospitals.find(h => h.id === values.hospitalId);
       await addDoc(collection(db, "feedback"), {
-        ...values,
-        userId: currentUser.uid,
+        hospitalId: values.hospitalId,
         hospitalName: selectedHospital?.name || "N/A", // Denormalize hospital name
-        submittedAt: serverTimestamp(),
+        patientId: currentUser.uid, // Use UID of the logged-in user as patientId
+        rating: values.rating,
+        comment: values.comment,
+        submittedAt: serverTimestamp() as Timestamp, // Firestore server timestamp
       });
       toast({
         title: "Feedback Submitted",
         description: "Thank you for your feedback!",
         variant: "default",
       });
-      form.reset();
+      form.reset({ hospitalId: "", rating: 0, comment: "" }); // Reset form
     } catch (error) {
       console.error("Error submitting feedback:", error);
       toast({
@@ -110,7 +129,7 @@ export function FeedbackForm() {
     }
   }
   
-  if (isLoading) {
+  if (isLoadingHospitals) {
     return <div className="flex items-center space-x-2"><Loader2 className="h-5 w-5 animate-spin" /> <span>Loading hospital list...</span></div>;
   }
 
@@ -128,7 +147,7 @@ export function FeedbackForm() {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Select Hospital</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value} disabled={hospitals.length === 0}>
+              <Select onValueChange={field.onChange} value={field.value} disabled={hospitals.length === 0}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder={hospitals.length > 0 ? "Choose the hospital you visited" : "No hospitals available"} />
@@ -152,29 +171,21 @@ export function FeedbackForm() {
             <FormItem className="space-y-3">
               <FormLabel>Overall Rating</FormLabel>
               <FormControl>
-                <RadioGroup
-                  onValueChange={(value) => field.onChange(parseInt(value))}
-                  // defaultValue={field.value?.toString()} // defaultValue on RadioGroup might not update visually with react-hook-form state
-                  value={field.value?.toString()} // Use value to control RadioGroup based on form state
-                  className="flex space-x-2"
-                >
+                <div className="flex space-x-1">
                   {[1, 2, 3, 4, 5].map(starValue => (
-                  <FormItem key={starValue} className="flex items-center space-x-1 space-y-0">
-                    <FormControl>
-                       <Button 
-                        type="button"
-                        variant={field.value >= starValue ? "default" : "outline"}
-                        size="icon"
-                        className={`rounded-full transition-colors ${field.value >= starValue ? 'bg-yellow-400 hover:bg-yellow-500 border-yellow-400' : 'hover:bg-yellow-100'}`}
-                        onClick={() => field.onChange(starValue)}
-                        aria-label={`Rate ${starValue} star`}
-                      >
-                        <Star className={`h-5 w-5 ${field.value >= starValue ? 'text-white fill-white' : 'text-yellow-400 fill-yellow-400'}`} />
-                       </Button>
-                    </FormControl>
-                  </FormItem>
+                  <Button 
+                    key={starValue}
+                    type="button"
+                    variant={field.value >= starValue ? "default" : "outline"}
+                    size="icon"
+                    className={`rounded-full transition-colors ${field.value >= starValue ? 'bg-yellow-400 hover:bg-yellow-500 border-yellow-400 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:border-yellow-500' : 'hover:bg-yellow-100 dark:hover:bg-yellow-500/20'}`}
+                    onClick={() => field.onChange(starValue)}
+                    aria-label={`Rate ${starValue} star${starValue > 1 ? 's' : ''}`}
+                  >
+                    <Star className={`h-5 w-5 ${field.value >= starValue ? 'text-white fill-white dark:text-slate-900 dark:fill-slate-900' : 'text-yellow-400 fill-yellow-400 dark:text-yellow-500 dark:fill-yellow-500'}`} />
+                  </Button>
                   ))}
-                </RadioGroup>
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -183,10 +194,10 @@ export function FeedbackForm() {
 
         <FormField
           control={form.control}
-          name="comments"
+          name="comment" 
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Comments</FormLabel>
+              <FormLabel>Comment</FormLabel>
               <FormControl>
                 <Textarea
                   placeholder="Tell us about your experience..."
@@ -198,7 +209,7 @@ export function FeedbackForm() {
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={isSubmitting || isLoading || hospitals.length === 0} className="w-full md:w-auto">
+        <Button type="submit" disabled={isSubmitting || isLoadingHospitals || hospitals.length === 0} className="w-full md:w-auto">
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           <Send className="mr-2 h-4 w-4" /> Submit Feedback
         </Button>

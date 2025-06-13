@@ -3,9 +3,11 @@ import type { Hospital } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import Image from 'next/image';
-import { BedDouble, MapPin, Phone, Star, CheckCircle, AlertCircle } from 'lucide-react';
+import { BedDouble, MapPin, Phone, Star, CheckCircle, AlertCircle, Zap } from 'lucide-react';
 import { Button } from './ui/button';
 import Link from 'next/link';
+import { format } from 'date-fns';
+import { Timestamp } from 'firebase/firestore';
 
 interface HospitalCardProps {
   hospital: Hospital;
@@ -26,10 +28,17 @@ function BedInfo({ label, available, total }: { label: string; available: number
 
 export function HospitalCard({ hospital }: HospitalCardProps) {
   const totalAvailableBeds = 
-    hospital.beds.icu.available + 
-    hospital.beds.oxygen.available + 
-    hospital.beds.ventilator.available + 
-    hospital.beds.general.available;
+    (hospital.beds.icu?.available || 0) + 
+    (hospital.beds.oxygen?.available || 0) + 
+    (hospital.beds.ventilator?.available || 0) + 
+    (hospital.beds.general?.available || 0);
+
+  let lastUpdatedText = "N/A";
+  if (hospital.lastUpdated) {
+    const date = hospital.lastUpdated instanceof Timestamp ? hospital.lastUpdated.toDate() : new Date(hospital.lastUpdated);
+    lastUpdatedText = format(date, "Pp");
+  }
+
 
   return (
     <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col">
@@ -40,9 +49,9 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
           width={600}
           height={400}
           className="w-full h-48 object-cover"
-          data-ai-hint={hospital.dataAiHint || "hospital exterior"}
+          data-ai-hint={hospital.name.toLowerCase().includes("children") ? "children hospital" : "hospital building"}
         />
-        {hospital.rating && (
+        {hospital.rating !== undefined && (
           <Badge variant="default" className="absolute top-2 right-2 bg-primary/80 backdrop-blur-sm">
             <Star className="w-3 h-3 mr-1 fill-yellow-400 text-yellow-400" /> {hospital.rating.toFixed(1)}
           </Badge>
@@ -50,45 +59,50 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
       </CardHeader>
       <CardContent className="p-4 flex-grow">
         <CardTitle className="text-xl font-headline mb-1 truncate" title={hospital.name}>{hospital.name}</CardTitle>
-        <CardDescription className="text-sm text-muted-foreground mb-2 flex items-center">
-          <MapPin className="w-4 h-4 mr-1 shrink-0" /> {hospital.address}
+        
+        <CardDescription className="text-sm text-muted-foreground mb-2 flex items-start">
+          <MapPin className="w-4 h-4 mr-1 shrink-0 mt-0.5" /> {hospital.location.address}
         </CardDescription>
+        
         {hospital.contact && (
           <CardDescription className="text-sm text-muted-foreground mb-3 flex items-center">
             <Phone className="w-4 h-4 mr-1 shrink-0" /> {hospital.contact}
           </CardDescription>
         )}
 
+        {hospital.emergencyAvailable !== undefined && (
+           <CardDescription className={`text-sm mb-3 flex items-center font-medium ${hospital.emergencyAvailable ? 'text-green-600' : 'text-red-600'}`}>
+            <Zap className="w-4 h-4 mr-1 shrink-0" /> Emergency: {hospital.emergencyAvailable ? "Available" : "Not Available"}
+          </CardDescription>
+        )}
+
         <div className="mb-3">
           {hospital.specialties.slice(0, 3).map(spec => (
-            <Badge key={spec} variant="secondary" className="mr-1 mb-1">{spec}</Badge>
+            <Badge key={spec} variant="secondary" className="mr-1 mb-1 capitalize">{spec}</Badge>
           ))}
           {hospital.specialties.length > 3 && <Badge variant="secondary">+{hospital.specialties.length - 3} more</Badge>}
         </div>
 
         <div className="space-y-1 border-t border-b py-3 my-3">
           <h4 className="text-sm font-semibold mb-1 text-foreground">Bed Availability:</h4>
-          <BedInfo label="ICU" available={hospital.beds.icu.available} total={hospital.beds.icu.total} />
-          <BedInfo label="Oxygen" available={hospital.beds.oxygen.available} total={hospital.beds.oxygen.total} />
-          <BedInfo label="Ventilator" available={hospital.beds.ventilator.available} total={hospital.beds.ventilator.total} />
-          <BedInfo label="General" available={hospital.beds.general.available} total={hospital.beds.general.total} />
+          <BedInfo label="ICU" available={hospital.beds.icu?.available || 0} total={hospital.beds.icu?.total || 0} />
+          <BedInfo label="Oxygen" available={hospital.beds.oxygen?.available || 0} total={hospital.beds.oxygen?.total || 0} />
+          <BedInfo label="Ventilator" available={hospital.beds.ventilator?.available || 0} total={hospital.beds.ventilator?.total || 0} />
+          <BedInfo label="General" available={hospital.beds.general?.available || 0} total={hospital.beds.general?.total || 0} />
         </div>
         
-        {hospital.distance && (
-          <p className="text-sm text-muted-foreground font-medium">
-            Distance: <span className="text-primary">{hospital.distance}</span>
-          </p>
-        )}
+         <p className="text-xs text-muted-foreground">Last Updated: {lastUpdatedText}</p>
+
 
       </CardContent>
-      <CardFooter className="p-4 bg-slate-50">
+      <CardFooter className="p-4 bg-slate-50 dark:bg-slate-800">
         <Button 
           className="w-full" 
           asChild 
           disabled={totalAvailableBeds === 0}
           variant={totalAvailableBeds > 0 ? "default" : "secondary"}
         >
-          <Link href={`/hospital/${hospital.id}/book`}>
+          <Link href={`/hospital/${hospital.id}/book`}> {/* This route doesn't exist yet */}
             <BedDouble className="w-4 h-4 mr-2" /> 
             {totalAvailableBeds > 0 ? `Reserve a Bed (${totalAvailableBeds} available)` : 'Check Availability Details'}
           </Link>
@@ -97,5 +111,3 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
     </Card>
   );
 }
-
-    

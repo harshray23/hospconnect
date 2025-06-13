@@ -10,20 +10,22 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Filter, ListFilter, MapPin, Stethoscope, AlertTriangle, Loader2, ServerCrash } from 'lucide-react';
+import { Filter, ListFilter, MapPin, Stethoscope, AlertTriangle, Loader2, ServerCrash, Zap } from 'lucide-react';
 import type { RecommendHospitalsOutput } from '@/ai/flows/smart-hospital-recommendations';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, DocumentData } from 'firebase/firestore';
+import { collection, getDocs, query, where, DocumentData, Timestamp } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const ALL_SPECIALTIES_VALUE = "_all_specialties_";
 const ANY_BED_TYPE_VALUE = "_any_bed_type_";
+const ANY_EMERGENCY_VALUE = "_any_emergency_";
 
 export default function SearchPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [specialtyFilter, setSpecialtyFilter] = useState(ALL_SPECIALTIES_VALUE);
   const [bedTypeFilter, setBedTypeFilter] = useState(ANY_BED_TYPE_VALUE);
   const [locationFilter, setLocationFilter] = useState('');
+  const [emergencyFilter, setEmergencyFilter] = useState(ANY_EMERGENCY_VALUE); 
   
   const [allHospitals, setAllHospitals] = useState<Hospital[]>([]);
   const [filteredHospitals, setFilteredHospitals] = useState<Hospital[]>([]);
@@ -41,11 +43,21 @@ export default function SearchPage() {
       try {
         const hospitalsCollectionRef = collection(db, 'hospitals');
         const hospitalSnapshot = await getDocs(hospitalsCollectionRef);
-        const fetchedHospitals: Hospital[] = hospitalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Hospital));
+        const fetchedHospitals: Hospital[] = hospitalSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return { 
+            id: doc.id, 
+            ...data,
+            // Ensure location and beds are at least empty objects if undefined from Firestore
+            location: data.location || { address: 'N/A' }, 
+            beds: data.beds || { icu: {}, general: {}, oxygen: {}, ventilator: {} },
+            lastUpdated: data.lastUpdated instanceof Timestamp ? data.lastUpdated.toDate().toISOString() : data.lastUpdated,
+          } as Hospital;
+        });
         setAllHospitals(fetchedHospitals);
         setFilteredHospitals(fetchedHospitals);
 
-        const specialties = Array.from(new Set(fetchedHospitals.flatMap(h => h.specialties))).sort();
+        const specialties = Array.from(new Set(fetchedHospitals.flatMap(h => h.specialties || []))).sort();
         setAllSpecialties(specialties);
 
       } catch (error) {
@@ -59,47 +71,62 @@ export default function SearchPage() {
   }, []);
 
   useEffect(() => {
-    let hospitals = allHospitals;
+    let hospitals = [...allHospitals]; // Create a copy to avoid mutating state directly
+
     if (searchTerm) {
       hospitals = hospitals.filter(h => h.name.toLowerCase().includes(searchTerm.toLowerCase()));
     }
     if (specialtyFilter && specialtyFilter !== ALL_SPECIALTIES_VALUE) {
-      hospitals = hospitals.filter(h => h.specialties.includes(specialtyFilter));
+      hospitals = hospitals.filter(h => h.specialties?.includes(specialtyFilter));
     }
     if (bedTypeFilter && bedTypeFilter !== ANY_BED_TYPE_VALUE) {
       hospitals = hospitals.filter(h => {
-        const bed = bedTypeFilter as keyof Hospital['beds']; // e.g. 'icu'
-        return h.beds[bed] && h.beds[bed].available > 0;
+        const bed = bedTypeFilter as keyof Hospital['beds'];
+        return h.beds?.[bed]?.available > 0;
       });
     }
     if (locationFilter) {
-      hospitals = hospitals.filter(h => h.city.toLowerCase().includes(locationFilter.toLowerCase()) || h.address.toLowerCase().includes(locationFilter.toLowerCase()));
+      hospitals = hospitals.filter(h => 
+        h.location?.address?.toLowerCase().includes(locationFilter.toLowerCase())
+      );
+    }
+    if (emergencyFilter !== ANY_EMERGENCY_VALUE) {
+      const emergencyRequired = emergencyFilter === "true";
+      hospitals = hospitals.filter(h => h.emergencyAvailable === emergencyRequired);
     }
     setFilteredHospitals(hospitals);
-  }, [searchTerm, specialtyFilter, bedTypeFilter, locationFilter, allHospitals]);
+  }, [searchTerm, specialtyFilter, bedTypeFilter, locationFilter, emergencyFilter, allHospitals]);
 
   const handleRecommendationsFetched = (data: RecommendHospitalsOutput | null) => {
     if (data) {
       setRecommendedHospitals(data.hospitals);
     } else {
-      setRecommendedHospitals([]); // No recommendations or error
+      setRecommendedHospitals([]); 
     }
     setIsLoadingRecommendations(false);
+  };
+  
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setSpecialtyFilter(ALL_SPECIALTIES_VALUE);
+    setBedTypeFilter(ANY_BED_TYPE_VALUE);
+    setLocationFilter('');
+    setEmergencyFilter(ANY_EMERGENCY_VALUE);
   };
 
   return (
     <div className="space-y-8">
       <section className="bg-card p-6 md:p-8 rounded-lg shadow-lg">
         <h1 className="text-3xl md:text-4xl font-bold font-headline mb-6 text-primary">Find a Hospital</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <Input
             placeholder="Search by hospital name..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            className="lg:col-span-2"
+            className="md:col-span-2 lg:col-span-1"
           />
           <Input
-            placeholder="Enter city or area..."
+            placeholder="Filter by city/area in address..."
             value={locationFilter}
             onChange={e => setLocationFilter(e.target.value)}
           />
@@ -111,7 +138,7 @@ export default function SearchPage() {
             <SelectContent>
               <SelectItem value={ALL_SPECIALTIES_VALUE}>All Specialties</SelectItem>
               {allSpecialties.map(spec => (
-                <SelectItem key={spec} value={spec}>{spec}</SelectItem>
+                <SelectItem key={spec} value={spec} className="capitalize">{spec}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -128,15 +155,21 @@ export default function SearchPage() {
               <SelectItem value="general">General Bed</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-         <Button onClick={() => {
-            setSearchTerm('');
-            setSpecialtyFilter(ALL_SPECIALTIES_VALUE);
-            setBedTypeFilter(ANY_BED_TYPE_VALUE);
-            setLocationFilter('');
-         }}>
+           <Select value={emergencyFilter} onValueChange={setEmergencyFilter} disabled={isLoadingHospitals || !!errorLoadingHospitals}>
+            <SelectTrigger>
+              <Zap className="h-4 w-4 mr-2 text-muted-foreground" />
+              <SelectValue placeholder="Emergency Services" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ANY_EMERGENCY_VALUE}>Any (Emergency)</SelectItem>
+              <SelectItem value="true">Emergency Available</SelectItem>
+              <SelectItem value="false">Emergency Not Available</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={handleResetFilters} variant="outline" className="lg:col-span-1 flex items-center justify-center">
             <Filter className="mr-2 h-4 w-4" /> Reset Filters
          </Button>
+        </div>
       </section>
 
       <Separator />
@@ -165,7 +198,7 @@ export default function SearchPage() {
             {recommendedHospitals && recommendedHospitals.length > 0 && (
               <div className="mt-6">
                 <h3 className="text-xl font-semibold mb-2">AI Recommended Hospitals:</h3>
-                <ul className="list-disc list-inside bg-green-50 border border-green-200 p-4 rounded-md text-green-700">
+                <ul className="list-disc list-inside bg-green-50 border border-green-200 p-4 rounded-md text-green-700 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700">
                   {recommendedHospitals.map((hospitalName, index) => (
                     <li key={index}>{hospitalName}</li>
                   ))}

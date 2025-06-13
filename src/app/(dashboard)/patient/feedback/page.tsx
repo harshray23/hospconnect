@@ -2,16 +2,18 @@
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+// Button component might not be needed here if not using Link as Button
+// import { Button } from "@/components/ui/button"; 
 import { FeedbackForm } from "@/components/forms/FeedbackForm";
-import type { Feedback as FeedbackType } from "@/lib/types"; // Renamed to avoid conflict
+import type { Feedback as FeedbackType } from "@/lib/types";
 import { MessageSquarePlus, MessageSquareText, Star, Loader2, ServerCrash } from "lucide-react";
-import Link from "next/link";
+// Link component might not be needed here if not using Link as Button
+// import Link from "next/link"; 
 import { useEffect, useState } from "react";
 import { db, auth } from "@/lib/firebase";
 import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
-import { format } from 'date-fns'; // For formatting dates
+import { format } from 'date-fns';
 
 export default function PatientFeedbackPage() {
   const [userFeedback, setUserFeedback] = useState<FeedbackType[]>([]);
@@ -26,15 +28,14 @@ export default function PatientFeedbackPage() {
       } else {
         setIsLoading(false);
         setUserFeedback([]);
-        // Optionally, prompt user to login or handle appropriately
         toast({
           title: "Not Logged In",
           description: "Please log in to see your feedback.",
-          variant: "default"
+          variant: "default" // Changed from "destructive" to "default" as it's informational
         });
       }
     });
-    return () => unsubscribe(); // Cleanup subscription
+    return () => unsubscribe(); 
   }, [toast]);
 
   const fetchFeedback = async (userId: string) => {
@@ -42,7 +43,8 @@ export default function PatientFeedbackPage() {
     setError(null);
     try {
       const feedbackCollectionRef = collection(db, 'feedback');
-      const q = query(feedbackCollectionRef, where("userId", "==", userId), orderBy("submittedAt", "desc"));
+      // Query by patientId as per the new schema (assuming patientId is the auth user's UID)
+      const q = query(feedbackCollectionRef, where("patientId", "==", userId), orderBy("submittedAt", "desc"));
       const feedbackSnapshot = await getDocs(q);
       const fetchedFeedback: FeedbackType[] = feedbackSnapshot.docs.map(doc => {
         const data = doc.data();
@@ -50,7 +52,7 @@ export default function PatientFeedbackPage() {
           id: doc.id,
           ...data,
           submittedAt: data.submittedAt instanceof Timestamp ? data.submittedAt.toDate().toISOString() : data.submittedAt,
-        } as FeedbackType;
+        } as FeedbackType; // Ensure type casting
       });
       setUserFeedback(fetchedFeedback);
     } catch (err) {
@@ -105,7 +107,7 @@ export default function PatientFeedbackPage() {
                 <li key={feedback.id} className="p-4 border rounded-lg bg-card shadow-sm">
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="font-semibold text-lg text-primary">{feedback.hospitalName || 'N/A'}</h3>
-                    <div className="flex items-center text-sm text-yellow-500">
+                    <div className="flex items-center text-sm text-yellow-500 dark:text-yellow-400">
                       {Array.from({ length: 5 }).map((_, i) => (
                         <Star key={i} className={`h-5 w-5 ${i < feedback.rating ? 'fill-current' : 'text-muted-foreground opacity-50'}`} />
                       ))}
@@ -115,7 +117,8 @@ export default function PatientFeedbackPage() {
                   <p className="text-muted-foreground text-sm mb-2">
                     Submitted on: {feedback.submittedAt ? format(new Date(feedback.submittedAt as string), "PPP") : 'N/A'}
                   </p>
-                  <p className="text-foreground leading-relaxed whitespace-pre-line">{feedback.comments}</p>
+                  {/* Renamed to feedback.comment from feedback.comments */}
+                  <p className="text-foreground leading-relaxed whitespace-pre-line">{feedback.comment}</p> 
                 </li>
               ))}
             </ul>

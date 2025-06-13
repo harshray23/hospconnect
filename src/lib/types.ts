@@ -1,51 +1,89 @@
 
 import type { Timestamp } from 'firebase/firestore';
 
+export interface HospitalLocation {
+  lat?: number; // Optional as per initial user request, but good for maps
+  lng?: number; // Optional
+  address: string;
+}
+
 export interface Hospital {
   id: string; // Firestore document ID
   name: string;
-  address: string;
-  city: string;
+  location: HospitalLocation;
+  contact?: string;
   specialties: string[];
   beds: {
-    icu: { available: number; total: number };
-    oxygen: { available: number; total: number };
-    ventilator: { available: number; total: number };
-    general: { available: number; total: number };
+    icu: { total: number; available: number };
+    general: { total: number; available: number };
+    oxygen: { total: number; available: number };
+    ventilator: { total: number; available: number };
   };
-  contact?: string;
-  imageUrl?: string;
-  dataAiHint?: string; // For placeholder image search keywords
-  rating?: number; // 1-5
-  services?: string[]; // e.g. "24/7 Emergency", "Pharmacy"
-  distance?: string; // for display, e.g. "2.5km" - this might be calculated client-side if not stored
-  lastBedUpdate?: Timestamp | string; // For Firestore timestamp
+  emergencyAvailable?: boolean;
+  lastUpdated?: Timestamp | string; // Firestore Timestamp or ISO string
+  imageUrl?: string; // Retained from previous, useful for UI
+  // dataAiHint, city, distance, services removed as not in new schema
+  rating?: number; // Retained from previous, useful for UI
+}
+
+export interface TreatmentLog {
+  note: string;
+  timestamp: Timestamp | string;
+}
+
+export interface Medication {
+  name: string;
+  dosage: string;
+  schedule: string;
+}
+
+// Replaces PatientAdmission, aligns with 'patients' collection schema
+export interface PatientRecord {
+  id: string; // Document ID, ideally Firebase Auth UID of the patient
+  name: string;
+  phone?: string;
+  assignedHospital?: string; // hospitalId
+  bedType?: 'icu' | 'oxygen' | 'ventilator' | 'general' | string; // Allow string for flexibility
+  status: 'admitted' | 'discharged' | 'transferred' | string; // Allow string for flexibility
+  treatmentLogs?: TreatmentLog[];
+  medications?: Medication[];
+  // Fields like 'reason' from old PatientAdmission could be the first treatmentLog.note
+  // 'recordedBy' removed as not in new schema
 }
 
 export interface Feedback {
   id: string; // Firestore document ID
   hospitalId: string;
   hospitalName?: string; // Denormalized for easier display
-  userId: string; // Firebase Auth UID of the submitting user
-  patientName?: string; // Optional, could be user's display name
+  patientId: string; // Firebase Auth UID of the patient or user submitting
   rating: number; // 1-5
-  comments: string;
-  submittedAt: Timestamp | string; // For Firestore timestamp
+  comment: string; // Renamed from comments
+  submittedAt: Timestamp | string; // Firestore Timestamp or ISO string
 }
 
 export interface Complaint {
   id: string; // Firestore document ID
-  userId: string; // Firebase Auth UID of the submitting user
-  patientName?: string; // Optional
-  hospitalId?: string;
+  hospitalId?: string; // Optional as per schema (can be general)
   hospitalName?: string; // Denormalized
-  description: string;
-  status: 'submitted' | 'in_progress' | 'resolved' | 'escalated';
-  submittedAt: Timestamp | string; // For Firestore timestamp
-  escalationNotes?: string;
+  patientId: string; // Firebase Auth UID of the patient or user submitting
+  issue: string; // Renamed from description
+  status: 'pending' | 'in_progress' | 'resolved' | 'escalated' | string; // Allow string
+  createdAt: Timestamp | string; // Firestore Timestamp or ISO string
+  escalationLevel?: 'local' | 'state' | string; // Optional
+  ticketId?: string; // Optional
+  // escalationNotes from previous implementation can be part of a more detailed status tracking or a separate log if needed
 }
 
-export type UserRole = 'patient' | 'hospital_admin' | 'health_department_official' | 'platform_admin';
+export type UserRole = 'patient' | 'hospital' | 'admin' | 'platform_admin' | 'health_department_official'; // 'hospital' instead of 'hospital_admin' to match schema
+
+export interface UserProfile {
+  id: string; // Firebase Auth UID
+  name: string;
+  email?: string; // Useful to store
+  role: UserRole;
+  hospitalId?: string; // If role is 'hospital'
+}
+
 
 // This type is for the form on hospital/beds page, actual storage is within Hospital type
 export interface BedAvailabilityData {
@@ -55,8 +93,10 @@ export interface BedAvailabilityData {
   general: { available: number; total: number };
 }
 
-export interface BedAvailabilityUpdateData extends BedAvailabilityData {
-  lastBedUpdate: Timestamp;
+// This is for the update operation, ensuring lastUpdated is part of it
+export interface HospitalBedUpdatePayload {
+  beds: BedAvailabilityData;
+  lastUpdated: Timestamp; // serverTimestamp()
 }
 
 
@@ -67,16 +107,4 @@ export interface Announcement {
   issuedAt: Timestamp | string; // ISO date string or Timestamp
   targetAudience: 'all_hospitals' | 'specific_hospitals'; // Add more if needed
   hospitalIds?: string[]; // if targetAudience is specific_hospitals
-}
-
-export interface PatientAdmission {
-  id: string; // Firestore document ID
-  hospitalId: string; // ID of the hospital where patient is admitted
-  patientName: string; 
-  admissionDate: Timestamp | string; 
-  reason: string;
-  bedType: 'icu' | 'oxygen' | 'ventilator' | 'general';
-  status: 'admitted' | 'discharged' | 'transferred';
-  notes?: string;
-  recordedBy?: string; // UID of hospital staff who recorded it
 }

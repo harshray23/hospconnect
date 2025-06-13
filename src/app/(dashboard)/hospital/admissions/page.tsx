@@ -19,72 +19,82 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { Loader2, UserPlus, ListChecks, ServerCrash } from "lucide-react";
-import type { PatientAdmission } from "@/lib/types";
+import { Loader2, UserPlus, ListChecks, ServerCrash, HospitalIcon, Phone, NotebookText } from "lucide-react";
+import type { PatientRecord, TreatmentLog } from "@/lib/types"; // Using new PatientRecord type
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { db, auth } from "@/lib/firebase";
-import { collection, addDoc, query, where, orderBy, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, query, where, orderBy, getDocs, serverTimestamp, Timestamp, doc, setDoc } from 'firebase/firestore';
 
-// In a real app, get this from the logged-in hospital admin's context/profile
-const MOCK_HOSPITAL_ID = "CityGeneralAnytown"; // Replace with actual logic to get hospital ID
+// In a real app, get this from the logged-in hospital admin's context/profile (UserProfile.hospitalId)
+const MOCK_HOSPITAL_ID = "CityGeneralAnytown"; 
 
-const admissionSchema = z.object({
+// Schema for the new patient record form, aligning with PatientRecord type
+const patientRecordSchema = z.object({
   patientName: z.string().min(2, { message: "Patient name must be at least 2 characters." }),
+  patientPhone: z.string().optional(), // Optional phone number
   admissionDate: z.date({ required_error: "Admission date is required."}),
-  reason: z.string().min(10, { message: "Reason for admission must be at least 10 characters." }),
+  initialReason: z.string().min(10, { message: "Reason for admission must be at least 10 characters." }), // Will be part of treatmentLogs
   bedType: z.enum(["icu", "oxygen", "ventilator", "general"], { required_error: "Please select bed type." }),
-  notes: z.string().optional(),
+  status: z.enum(["admitted", "discharged", "transferred"]).default("admitted"),
+  additionalNotes: z.string().optional(), // Can also be part of treatmentLogs
 });
 
 
 export default function HospitalAdmissionsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoadingAdmissions, setIsLoadingAdmissions] = useState(true);
-  const [admissions, setAdmissions] = useState<PatientAdmission[]>([]);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(true);
+  const [patientRecords, setPatientRecords] = useState<PatientRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Placeholder for hospital ID
+  // This should come from the logged-in hospital admin's profile (UserProfile.hospitalId)
   const hospitalId = MOCK_HOSPITAL_ID; 
 
-  const form = useForm<z.infer<typeof admissionSchema>>({
-    resolver: zodResolver(admissionSchema),
+  const form = useForm<z.infer<typeof patientRecordSchema>>({
+    resolver: zodResolver(patientRecordSchema),
     defaultValues: {
       patientName: "",
-      reason: "",
-      notes: "",
+      patientPhone: "",
+      initialReason: "",
+      additionalNotes: "",
+      status: "admitted",
     },
   });
   
-  const fetchAdmissions = async (currentHospitalId: string) => {
-    setIsLoadingAdmissions(true);
+  const fetchPatientRecords = async (currentHospitalId: string) => {
+    setIsLoadingRecords(true);
     setError(null);
     try {
-      const admissionsCollectionRef = collection(db, 'admissions');
-      // Note: You'll need to create Firestore rules for the 'admissions' collection.
-      // Example rule: allow read, write: if request.auth != null && get(/databases/$(database)/documents/hospitals/$(request.resource.data.hospitalId)).data.adminUids[request.auth.uid] == true;
-      // This is a complex rule and needs careful consideration for your auth model.
-      const q = query(admissionsCollectionRef, where("hospitalId", "==", currentHospitalId), orderBy("admissionDate", "desc"));
+      // Query 'patients' collection instead of 'admissions'
+      const patientsCollectionRef = collection(db, 'patients');
+      // Filter by assignedHospital
+      // Firestore rules for 'patients' should allow hospital admins to read records for their hospital
+      const q = query(patientsCollectionRef, where("assignedHospital", "==", currentHospitalId), orderBy("name", "asc")); // Assuming admission date isn't directly on patient doc for ordering
       const snapshot = await getDocs(q);
-      const fetchedAdmissions: PatientAdmission[] = snapshot.docs.map(doc => {
-          const data = doc.data();
+      const fetchedRecords: PatientRecord[] = snapshot.docs.map(docSnapshot => {
+          const data = docSnapshot.data();
+          // Convert treatmentLog timestamps if they exist
+          const treatmentLogs = (data.treatmentLogs || []).map((log: any) => ({
+              ...log,
+              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate().toISOString() : log.timestamp
+          }));
           return {
-            id: doc.id,
+            id: docSnapshot.id, // This is the patientId (Firebase Auth UID or auto-generated)
             ...data,
-            admissionDate: data.admissionDate instanceof Timestamp ? data.admissionDate.toDate().toISOString() : data.admissionDate,
-          } as PatientAdmission;
+            treatmentLogs,
+          } as PatientRecord;
       });
-      setAdmissions(fetchedAdmissions);
+      setPatientRecords(fetchedRecords);
     } catch (err) {
-      console.error("Error fetching admissions:", err);
-      setError("Failed to load admissions. Please ensure Firestore rules for 'admissions' collection are set up.");
-      toast({ title: "Error", description: "Could not load admissions.", variant: "destructive" });
+      console.error("Error fetching patient records:", err);
+      setError("Failed to load patient records. Please ensure Firestore rules for 'patients' collection are set up correctly for hospital access.");
+      toast({ title: "Error", description: "Could not load patient records.", variant: "destructive" });
     } finally {
-      setIsLoadingAdmissions(false);
+      setIsLoadingRecords(false);
     }
   };
 
@@ -92,16 +102,17 @@ export default function HospitalAdmissionsPage() {
     const currentUser = auth.currentUser;
     if (currentUser && hospitalId) {
       // In a real app, verify this user is an admin for hospitalId
-      fetchAdmissions(hospitalId);
+      // This check would typically involve looking up UserProfile for currentUser.uid
+      fetchPatientRecords(hospitalId);
     } else {
-      setIsLoadingAdmissions(false);
+      setIsLoadingRecords(false);
       setError("User not authenticated or hospital ID not set.");
        toast({ title: "Access Denied", description: "Login as hospital admin.", variant: "destructive"});
     }
   }, [hospitalId, toast]);
 
 
-  async function onSubmit(values: z.infer<typeof admissionSchema>) {
+  async function onSubmit(values: z.infer<typeof patientRecordSchema>) {
     setIsSubmitting(true);
     const currentUser = auth.currentUser;
 
@@ -115,32 +126,49 @@ export default function HospitalAdmissionsPage() {
       setIsSubmitting(false);
       return;
     }
-    // Further check: ensure currentUser is an admin for this hospitalId
+    // Further check: ensure currentUser is an admin for this hospitalId (via UserProfile)
 
     try {
-      const newAdmissionData = {
-        ...values,
-        hospitalId: hospitalId, 
-        admissionDate: Timestamp.fromDate(values.admissionDate),
-        status: "admitted" as PatientAdmission['status'],
-        recordedBy: currentUser.uid,
+      // Create the initial treatment log
+      const initialTreatmentLog: TreatmentLog = {
+        note: `Admission Reason: ${values.initialReason}${values.additionalNotes ? ". Additional Notes: " + values.additionalNotes : ""}`,
+        timestamp: serverTimestamp() as Timestamp // Server timestamp for the log
       };
-      const docRef = await addDoc(collection(db, "admissions"), newAdmissionData);
+
+      // Using patient's UID as document ID in 'patients' collection is good practice if patients log in.
+      // If patients don't log in, an auto-generated ID is fine.
+      // For this form, let's assume auto-generated ID if no patient UID is provided.
+      // Or, we can require a patient ID to be entered/selected if managing existing patients.
+      // For simplicity, let's auto-generate for new patient record.
+      const newPatientDocRef = doc(collection(db, "patients"));
+
+
+      const newPatientData: Omit<PatientRecord, 'id'> = {
+        name: values.patientName,
+        phone: values.patientPhone,
+        assignedHospital: hospitalId,
+        bedType: values.bedType,
+        status: values.status,
+        treatmentLogs: [initialTreatmentLog],
+        medications: [], // Initialize as empty array
+      };
+      
+      await setDoc(newPatientDocRef, newPatientData); // Using setDoc with an auto-gen ref
       
       // Optimistically add to UI or refetch
-      setAdmissions(prev => [{ ...newAdmissionData, id: docRef.id, admissionDate: values.admissionDate.toISOString() }, ...prev]);
+      setPatientRecords(prev => [{ ...newPatientData, id: newPatientDocRef.id, treatmentLogs: [{...initialTreatmentLog, timestamp: new Date().toISOString()}] }, ...prev]);
 
       toast({
-        title: "Patient Admitted",
-        description: `${values.patientName} has been successfully recorded.`,
+        title: "Patient Record Created",
+        description: `${values.patientName}'s record has been successfully created.`,
         variant: "default",
       });
       form.reset();
     } catch (error) {
-      console.error("Error recording admission:", error);
+      console.error("Error recording patient:", error);
       toast({
-        title: "Admission Failed",
-        description: "Could not record admission. Please try again.",
+        title: "Record Creation Failed",
+        description: "Could not create patient record. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -155,8 +183,8 @@ export default function HospitalAdmissionsPage() {
           <div className="flex items-center">
             <UserPlus className="h-8 w-8 text-primary mr-3" />
             <div>
-                <CardTitle className="text-3xl font-headline">Record New Patient Admission</CardTitle>
-                <CardDescription>Enter details for newly admitted patients for {hospitalId || "your hospital"}.</CardDescription>
+                <CardTitle className="text-3xl font-headline">Record New Patient</CardTitle>
+                <CardDescription>Enter details for new patients at {hospitalId || "your hospital"}.</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -178,10 +206,23 @@ export default function HospitalAdmissionsPage() {
               />
                <FormField
                 control={form.control}
+                name="patientPhone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Patient Phone (Optional)</FormLabel>
+                    <FormControl>
+                      <Input type="tel" placeholder="e.g., +91-9876543210" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+               <FormField
+                control={form.control}
                 name="admissionDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Admission Date</FormLabel>
+                    <FormLabel>Admission Date (for initial log)</FormLabel>
                     <Popover>
                       <PopoverTrigger asChild>
                         <FormControl>
@@ -219,13 +260,13 @@ export default function HospitalAdmissionsPage() {
               />
               <FormField
                 control={form.control}
-                name="reason"
+                name="initialReason"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Reason for Admission</FormLabel>
+                    <FormLabel>Reason for Admission / Initial Note</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Describe the primary reason for admission..."
+                        placeholder="Describe the primary reason for admission or initial observation..."
                         className="resize-y min-h-[100px]"
                         {...field}
                       />
@@ -258,14 +299,36 @@ export default function HospitalAdmissionsPage() {
                   )}
                 />
                 <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Patient Status</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="admitted">Admitted</SelectItem>
+                          <SelectItem value="discharged">Discharged</SelectItem>
+                          <SelectItem value="transferred">Transferred</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
                 control={form.control}
-                name="notes"
+                name="additionalNotes"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Additional Notes (Optional)</FormLabel>
+                    <FormLabel>Additional Notes (Optional for initial log)</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Any other relevant information..."
+                        placeholder="Any other relevant information for the initial log..."
                         className="resize-y min-h-[80px]"
                         {...field}
                       />
@@ -276,7 +339,7 @@ export default function HospitalAdmissionsPage() {
               />
               <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting || !hospitalId}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Record Admission
+                Create Patient Record
               </Button>
             </form>
           </Form>
@@ -288,41 +351,49 @@ export default function HospitalAdmissionsPage() {
             <div className="flex items-center">
                 <ListChecks className="h-8 w-8 text-primary mr-3" />
                 <div>
-                    <CardTitle className="text-3xl font-headline">Current Admissions</CardTitle>
-                    <CardDescription>List of patients currently admitted at {hospitalId || "your hospital"}.</CardDescription>
+                    <CardTitle className="text-3xl font-headline">Current Patient Records</CardTitle>
+                    <CardDescription>List of patients recorded at {hospitalId || "your hospital"}.</CardDescription>
                 </div>
             </div>
         </CardHeader>
         <CardContent>
-          {isLoadingAdmissions ? (
+          {isLoadingRecords ? (
              <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
-                <span>Loading admissions...</span>
+                <span>Loading patient records...</span>
             </div>
           ) : error ? (
             <div className="text-destructive flex flex-col items-center justify-center py-8">
                 <ServerCrash className="h-10 w-10 mb-2" />
                 <p>{error}</p>
             </div>
-          ) : admissions.length > 0 ? (
+          ) : patientRecords.length > 0 ? (
             <ul className="space-y-4">
-              {admissions.map(adm => (
-                <li key={adm.id} className="p-4 border rounded-lg bg-card shadow-sm">
+              {patientRecords.map(record => (
+                <li key={record.id} className="p-4 border rounded-lg bg-card shadow-sm">
                   <div className="flex justify-between items-start">
-                    <h3 className="font-semibold text-lg text-primary">{adm.patientName}</h3>
-                    <span className={`text-sm capitalize px-2 py-1 rounded-full ${adm.status === 'admitted' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'}`}>{adm.status}</span>
+                    <h3 className="font-semibold text-lg text-primary">{record.name}</h3>
+                    <span className={`text-sm capitalize px-2 py-1 rounded-full ${record.status === 'admitted' ? 'bg-green-100 text-green-700 dark:bg-green-700/30 dark:text-green-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-700/30 dark:text-slate-300'}`}>{record.status}</span>
                   </div>
+                  {record.phone && <p className="text-sm text-muted-foreground flex items-center"><Phone className="w-3 h-3 mr-1.5"/>{record.phone}</p>}
                   <p className="text-sm text-muted-foreground">
-                    Admitted: {adm.admissionDate ? format(new Date(adm.admissionDate as string), "PPP") : "N/A"} | Bed: <span className="capitalize font-medium">{adm.bedType}</span>
+                    Bed: <span className="capitalize font-medium">{record.bedType || "N/A"}</span>
                   </p>
-                  <p className="text-sm mt-1"><strong>Reason:</strong> {adm.reason}</p>
-                  {adm.notes && <p className="text-sm mt-1 text-muted-foreground"><em>Notes: {adm.notes}</em></p>}
-                   {/* <Button variant="outline" size="sm" className="mt-2">View/Edit Details</Button> */}
+                  {record.treatmentLogs && record.treatmentLogs.length > 0 && (
+                    <div className="mt-2">
+                        <p className="text-xs font-semibold text-muted-foreground">Latest Log:</p>
+                        <p className="text-sm mt-1 bg-slate-50 dark:bg-slate-800 p-2 rounded">
+                           "{record.treatmentLogs[record.treatmentLogs.length -1].note}" 
+                           <span className="text-xs text-muted-foreground ml-1">({record.treatmentLogs[record.treatmentLogs.length -1].timestamp ? format(new Date(record.treatmentLogs[record.treatmentLogs.length -1].timestamp as string), "Pp") : 'N/A'})</span>
+                        </p>
+                    </div>
+                  )}
+                   {/* TODO: Add button to view full patient details / edit record */}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-muted-foreground text-center py-4">No patients currently recorded as admitted for this hospital.</p>
+            <p className="text-muted-foreground text-center py-4">No patient records found for this hospital.</p>
           )}
         </CardContent>
       </Card>
