@@ -1,3 +1,4 @@
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
@@ -10,25 +11,21 @@ export default function HomePage() {
       icon: <BedDouble className="h-10 w-10 text-primary" />,
       title: 'Real-Time Bed Availability',
       description: 'Live updates on ICU, oxygen, ventilator, and general beds.',
-      dataAiHint: 'hospital bed',
     },
     {
       icon: <Search className="h-10 w-10 text-primary" />,
       title: 'Hospital Search & Booking',
       description: 'Find nearby hospitals, filter by specialty, and reserve beds.',
-      dataAiHint: 'magnifying glass',
     },
     {
       icon: <Activity className="h-10 w-10 text-primary" />,
       title: 'Smart Recommendations',
       description: 'AI-powered suggestions for the best hospitals based on your needs.',
-      dataAiHint: 'brain ai',
     },
     {
       icon: <MessageSquareHeart className="h-10 w-10 text-primary" />,
       title: 'Feedback & Complaints',
       description: 'Share your experiences and help improve healthcare services.',
-      dataAiHint: 'feedback chat',
     },
   ];
 
