@@ -114,7 +114,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Placeholder Image Section */}
+      {/* Image Section */}
        <section className="py-16">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-bold font-headline text-center mb-12 text-primary">
@@ -122,12 +122,11 @@ export default function HomePage() {
           </h2>
           <div className="aspect-[16/9] w-full max-w-4xl mx-auto rounded-lg overflow-hidden shadow-2xl">
             <Image
-              src="https://placehold.co/1200x675.png"
-              alt="Diverse group of doctors and patients"
+              src="/img.png"
+              alt="HospConnect - Connecting Care, Improving Lives"
               width={1200}
               height={675}
               className="object-cover w-full h-full"
-              data-ai-hint="healthcare professionals"
             />
           </div>
         </div>
