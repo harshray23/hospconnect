@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -12,31 +13,53 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input"; // Might not be needed if selecting hospital
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Send, Star } from "lucide-react";
-import { useState } from "react";
-// import { submitFeedback } from "@/lib/actions/feedback"; // Placeholder
-
-// Mock hospitals for selection - in a real app, this would be fetched or based on user's visit history
-const mockHospitalsForFeedback = [
-  { id: "1", name: "City General Hospital" },
-  { id: "2", name: "St. Luke’s Medical Center" },
-  { id: "3", name: "Community Health Clinic" },
-];
+import { Loader2, Send, Star, ServerCrash } from "lucide-react";
+import { useState, useEffect } from "react";
+import { db, auth } from "@/lib/firebase";
+import { collection, addDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
+import type { Hospital } from "@/lib/types"; // Import Hospital type
 
 const feedbackSchema = z.object({
-  hospitalId: z.string({ required_error: "Please select a hospital." }),
+  hospitalId: z.string({ required_error: "Please select a hospital." }).min(1, "Please select a hospital."),
   rating: z.coerce.number().min(1, "Rating is required").max(5, "Rating cannot exceed 5"),
   comments: z.string().min(10, { message: "Comments must be at least 10 characters." }).max(1000, "Comments cannot exceed 1000 characters."),
 });
 
 export function FeedbackForm() {
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
+  const [errorLoadingHospitals, setErrorLoadingHospitals] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchHospitals = async () => {
+      setIsLoading(true);
+      setErrorLoadingHospitals(null);
+      try {
+        const hospitalsCollectionRef = collection(db, 'hospitals');
+        const q = query(hospitalsCollectionRef, orderBy("name"));
+        const hospitalSnapshot = await getDocs(q);
+        const fetchedHospitals: Hospital[] = hospitalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Hospital));
+        setHospitals(fetchedHospitals);
+      } catch (error) {
+        console.error("Error fetching hospitals for feedback form:", error);
+        setErrorLoadingHospitals("Could not load hospitals. Please try again later.");
+        toast({
+          title: "Error",
+          description: "Could not load hospital list for feedback.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchHospitals();
+  }, [toast]);
 
   const form = useForm<z.infer<typeof feedbackSchema>>({
     resolver: zodResolver(feedbackSchema),
@@ -48,27 +71,53 @@ export function FeedbackForm() {
   });
 
   async function onSubmit(values: z.infer<typeof feedbackSchema>) {
-    setIsLoading(true);
-    // const result = await submitFeedback(values); // Placeholder
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    const result = { success: true, message: "Feedback submitted successfully. Thank you!" };
-    
-    setIsLoading(false);
-    if (result.success) {
+    setIsSubmitting(true);
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
+      toast({
+        title: "Authentication Required",
+        description: "You must be logged in to submit feedback.",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      const selectedHospital = hospitals.find(h => h.id === values.hospitalId);
+      await addDoc(collection(db, "feedback"), {
+        ...values,
+        userId: currentUser.uid,
+        hospitalName: selectedHospital?.name || "N/A", // Denormalize hospital name
+        submittedAt: serverTimestamp(),
+      });
       toast({
         title: "Feedback Submitted",
-        description: result.message,
+        description: "Thank you for your feedback!",
         variant: "default",
       });
       form.reset();
-    } else {
+    } catch (error) {
+      console.error("Error submitting feedback:", error);
       toast({
         title: "Submission Failed",
-        description: result.message || "Could not submit feedback. Please try again.",
+        description: "Could not submit feedback. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   }
+  
+  if (isLoading) {
+    return <div className="flex items-center space-x-2"><Loader2 className="h-5 w-5 animate-spin" /> <span>Loading hospital list...</span></div>;
+  }
+
+  if (errorLoadingHospitals) {
+    return <div className="text-destructive flex items-center space-x-2"><ServerCrash className="h-5 w-5" /> <span>{errorLoadingHospitals}</span></div>;
+  }
+
 
   return (
     <Form {...form}>
@@ -79,14 +128,14 @@ export function FeedbackForm() {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Select Hospital</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} defaultValue={field.value} disabled={hospitals.length === 0}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder="Choose the hospital you visited" />
+                    <SelectValue placeholder={hospitals.length > 0 ? "Choose the hospital you visited" : "No hospitals available"} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {mockHospitalsForFeedback.map(hospital => (
+                  {hospitals.map(hospital => (
                     <SelectItem key={hospital.id} value={hospital.id}>{hospital.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -105,7 +154,8 @@ export function FeedbackForm() {
               <FormControl>
                 <RadioGroup
                   onValueChange={(value) => field.onChange(parseInt(value))}
-                  defaultValue={field.value?.toString()}
+                  // defaultValue={field.value?.toString()} // defaultValue on RadioGroup might not update visually with react-hook-form state
+                  value={field.value?.toString()} // Use value to control RadioGroup based on form state
                   className="flex space-x-2"
                 >
                   {[1, 2, 3, 4, 5].map(starValue => (
@@ -148,8 +198,8 @@ export function FeedbackForm() {
             </FormItem>
           )}
         />
-        <Button type="submit" disabled={isLoading} className="w-full md:w-auto">
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        <Button type="submit" disabled={isSubmitting || isLoading || hospitals.length === 0} className="w-full md:w-auto">
+          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           <Send className="mr-2 h-4 w-4" /> Submit Feedback
         </Button>
       </form>

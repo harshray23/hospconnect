@@ -18,14 +18,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
-import { Loader2, UserPlus, ListChecks } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Loader2, UserPlus, ListChecks, ServerCrash } from "lucide-react";
 import type { PatientAdmission } from "@/lib/types";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { db, auth } from "@/lib/firebase";
+import { collection, addDoc, query, where, orderBy, getDocs, serverTimestamp, Timestamp } from 'firebase/firestore';
+
+// In a real app, get this from the logged-in hospital admin's context/profile
+const MOCK_HOSPITAL_ID = "CityGeneralAnytown"; // Replace with actual logic to get hospital ID
 
 const admissionSchema = z.object({
   patientName: z.string().min(2, { message: "Patient name must be at least 2 characters." }),
@@ -35,33 +40,16 @@ const admissionSchema = z.object({
   notes: z.string().optional(),
 });
 
-// Mock existing admissions - in a real app, this would be fetched.
-const mockPatientAdmissions: PatientAdmission[] = [
-  {
-    id: "adm1",
-    hospitalId: "1", // Current hospital
-    patientName: "John Patient",
-    admissionDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-    reason: "Severe pneumonia, requiring oxygen support.",
-    bedType: "oxygen",
-    status: "admitted",
-  },
-  {
-    id: "adm2",
-    hospitalId: "1",
-    patientName: "Alice Wonder",
-    admissionDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
-    reason: "Post-operative care for appendectomy.",
-    bedType: "general",
-    status: "admitted",
-    notes: "Stable condition, recovering well."
-  },
-];
 
 export default function HospitalAdmissionsPage() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [admissions, setAdmissions] = useState<PatientAdmission[]>(mockPatientAdmissions);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingAdmissions, setIsLoadingAdmissions] = useState(true);
+  const [admissions, setAdmissions] = useState<PatientAdmission[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Placeholder for hospital ID
+  const hospitalId = MOCK_HOSPITAL_ID; 
 
   const form = useForm<z.infer<typeof admissionSchema>>({
     resolver: zodResolver(admissionSchema),
@@ -71,28 +59,93 @@ export default function HospitalAdmissionsPage() {
       notes: "",
     },
   });
+  
+  const fetchAdmissions = async (currentHospitalId: string) => {
+    setIsLoadingAdmissions(true);
+    setError(null);
+    try {
+      const admissionsCollectionRef = collection(db, 'admissions');
+      // Note: You'll need to create Firestore rules for the 'admissions' collection.
+      // Example rule: allow read, write: if request.auth != null && get(/databases/$(database)/documents/hospitals/$(request.resource.data.hospitalId)).data.adminUids[request.auth.uid] == true;
+      // This is a complex rule and needs careful consideration for your auth model.
+      const q = query(admissionsCollectionRef, where("hospitalId", "==", currentHospitalId), orderBy("admissionDate", "desc"));
+      const snapshot = await getDocs(q);
+      const fetchedAdmissions: PatientAdmission[] = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            admissionDate: data.admissionDate instanceof Timestamp ? data.admissionDate.toDate().toISOString() : data.admissionDate,
+          } as PatientAdmission;
+      });
+      setAdmissions(fetchedAdmissions);
+    } catch (err) {
+      console.error("Error fetching admissions:", err);
+      setError("Failed to load admissions. Please ensure Firestore rules for 'admissions' collection are set up.");
+      toast({ title: "Error", description: "Could not load admissions.", variant: "destructive" });
+    } finally {
+      setIsLoadingAdmissions(false);
+    }
+  };
+
+  useEffect(() => {
+    const currentUser = auth.currentUser;
+    if (currentUser && hospitalId) {
+      // In a real app, verify this user is an admin for hospitalId
+      fetchAdmissions(hospitalId);
+    } else {
+      setIsLoadingAdmissions(false);
+      setError("User not authenticated or hospital ID not set.");
+       toast({ title: "Access Denied", description: "Login as hospital admin.", variant: "destructive"});
+    }
+  }, [hospitalId, toast]);
+
 
   async function onSubmit(values: z.infer<typeof admissionSchema>) {
-    setIsLoading(true);
-    // In a real application, you would send this data to a backend API
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    const newAdmission: PatientAdmission = {
-      id: `adm${Date.now()}`,
-      hospitalId: "current_hospital_id", // Replace with actual hospital ID from context/session
-      ...values,
-      admissionDate: values.admissionDate.toISOString(),
-      status: "admitted", // Default status on new admission
-    };
-    setAdmissions(prev => [newAdmission, ...prev]);
+    setIsSubmitting(true);
+    const currentUser = auth.currentUser;
 
-    setIsLoading(false);
-    toast({
-      title: "Patient Admitted",
-      description: `${values.patientName} has been successfully recorded as admitted.`,
-      variant: "default",
-    });
-    form.reset();
+    if (!currentUser) {
+      toast({ title: "Authentication Error", description: "You must be logged in.", variant: "destructive" });
+      setIsSubmitting(false);
+      return;
+    }
+    if (!hospitalId) {
+      toast({ title: "Configuration Error", description: "Hospital ID is not set.", variant: "destructive" });
+      setIsSubmitting(false);
+      return;
+    }
+    // Further check: ensure currentUser is an admin for this hospitalId
+
+    try {
+      const newAdmissionData = {
+        ...values,
+        hospitalId: hospitalId, 
+        admissionDate: Timestamp.fromDate(values.admissionDate),
+        status: "admitted" as PatientAdmission['status'],
+        recordedBy: currentUser.uid,
+      };
+      const docRef = await addDoc(collection(db, "admissions"), newAdmissionData);
+      
+      // Optimistically add to UI or refetch
+      setAdmissions(prev => [{ ...newAdmissionData, id: docRef.id, admissionDate: values.admissionDate.toISOString() }, ...prev]);
+
+      toast({
+        title: "Patient Admitted",
+        description: `${values.patientName} has been successfully recorded.`,
+        variant: "default",
+      });
+      form.reset();
+    } catch (error) {
+      console.error("Error recording admission:", error);
+      toast({
+        title: "Admission Failed",
+        description: "Could not record admission. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -103,7 +156,7 @@ export default function HospitalAdmissionsPage() {
             <UserPlus className="h-8 w-8 text-primary mr-3" />
             <div>
                 <CardTitle className="text-3xl font-headline">Record New Patient Admission</CardTitle>
-                <CardDescription>Enter details for newly admitted patients.</CardDescription>
+                <CardDescription>Enter details for newly admitted patients for {hospitalId || "your hospital"}.</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -221,8 +274,8 @@ export default function HospitalAdmissionsPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full sm:w-auto" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting || !hospitalId}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Record Admission
               </Button>
             </form>
@@ -236,30 +289,40 @@ export default function HospitalAdmissionsPage() {
                 <ListChecks className="h-8 w-8 text-primary mr-3" />
                 <div>
                     <CardTitle className="text-3xl font-headline">Current Admissions</CardTitle>
-                    <CardDescription>List of patients currently admitted.</CardDescription>
+                    <CardDescription>List of patients currently admitted at {hospitalId || "your hospital"}.</CardDescription>
                 </div>
             </div>
         </CardHeader>
         <CardContent>
-          {admissions.length > 0 ? (
+          {isLoadingAdmissions ? (
+             <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mr-2" />
+                <span>Loading admissions...</span>
+            </div>
+          ) : error ? (
+            <div className="text-destructive flex flex-col items-center justify-center py-8">
+                <ServerCrash className="h-10 w-10 mb-2" />
+                <p>{error}</p>
+            </div>
+          ) : admissions.length > 0 ? (
             <ul className="space-y-4">
               {admissions.map(adm => (
                 <li key={adm.id} className="p-4 border rounded-lg bg-card shadow-sm">
                   <div className="flex justify-between items-start">
                     <h3 className="font-semibold text-lg text-primary">{adm.patientName}</h3>
-                    <span className="text-sm capitalize px-2 py-1 rounded-full bg-green-100 text-green-700">{adm.status}</span>
+                    <span className={`text-sm capitalize px-2 py-1 rounded-full ${adm.status === 'admitted' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-700'}`}>{adm.status}</span>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Admitted: {format(new Date(adm.admissionDate), "PPP")} | Bed: <span className="capitalize font-medium">{adm.bedType}</span>
+                    Admitted: {adm.admissionDate ? format(new Date(adm.admissionDate as string), "PPP") : "N/A"} | Bed: <span className="capitalize font-medium">{adm.bedType}</span>
                   </p>
                   <p className="text-sm mt-1"><strong>Reason:</strong> {adm.reason}</p>
                   {adm.notes && <p className="text-sm mt-1 text-muted-foreground"><em>Notes: {adm.notes}</em></p>}
-                   <Button variant="outline" size="sm" className="mt-2">View/Edit Details</Button>
+                   {/* <Button variant="outline" size="sm" className="mt-2">View/Edit Details</Button> */}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-muted-foreground text-center py-4">No patients currently recorded as admitted.</p>
+            <p className="text-muted-foreground text-center py-4">No patients currently recorded as admitted for this hospital.</p>
           )}
         </CardContent>
       </Card>

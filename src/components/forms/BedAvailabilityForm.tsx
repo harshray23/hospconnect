@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,24 +14,14 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BedDouble, Loader2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-// import { updateBedAvailability } from "@/lib/actions/hospital"; // Placeholder
+import { db, auth } from "@/lib/firebase";
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import type { BedAvailabilityData, BedAvailabilityUpdateData } from "@/lib/types";
 
-interface BedData {
-  available: number;
-  total: number;
-}
-
-interface CurrentAvailabilityProps {
-  icu: BedData;
-  oxygen: BedData;
-  ventilator: BedData;
-  general: BedData;
-  lastUpdated: string;
-}
 
 const bedInputSchema = z.object({
   available: z.coerce.number().min(0, "Cannot be negative").int("Must be an integer"),
@@ -48,43 +39,65 @@ const availabilitySchema = z.object({
 });
 
 interface BedAvailabilityFormProps {
-  currentAvailability: CurrentAvailabilityProps;
+  currentAvailability: BedAvailabilityData;
+  hospitalId: string; // ID of the hospital being updated
+  onUpdateSuccess: (updatedData: BedAvailabilityData) => void;
 }
 
-export function BedAvailabilityForm({ currentAvailability }: BedAvailabilityFormProps) {
-  const [isLoading, setIsLoading] = useState(false);
+export function BedAvailabilityForm({ currentAvailability, hospitalId, onUpdateSuccess }: BedAvailabilityFormProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof availabilitySchema>>({
     resolver: zodResolver(availabilitySchema),
-    defaultValues: {
-      icu: currentAvailability.icu,
-      oxygen: currentAvailability.oxygen,
-      ventilator: currentAvailability.ventilator,
-      general: currentAvailability.general,
-    },
+    defaultValues: currentAvailability,
   });
+  
+  // Sync form with prop changes if currentAvailability is fetched async
+  useState(() => {
+    form.reset(currentAvailability);
+  }, [currentAvailability, form]);
+
 
   async function onSubmit(values: z.infer<typeof availabilitySchema>) {
-    setIsLoading(true);
-    // const result = await updateBedAvailability(values); // Placeholder
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    const result = { success: true, message: "Bed availability updated successfully." };
+    setIsSubmitting(true);
 
-    setIsLoading(false);
-    if (result.success) {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
       toast({
-        title: "Update Successful",
-        description: result.message,
-        variant: "default",
-      });
-      // Potentially refetch data or update UI state
-    } else {
-      toast({
-        title: "Update Failed",
-        description: result.message || "Could not update bed availability.",
+        title: "Authentication Required",
+        description: "You must be logged in to update bed availability.",
         variant: "destructive",
       });
+      setIsSubmitting(false);
+      return;
+    }
+    // Additional check: In a real app, verify if currentUser is admin for this hospitalId
+
+    try {
+      const hospitalDocRef = doc(db, "hospitals", hospitalId);
+      const updateData: { beds: BedAvailabilityData, lastBedUpdate: any } = {
+        beds: values,
+        lastBedUpdate: serverTimestamp(),
+      };
+      await updateDoc(hospitalDocRef, updateData);
+      
+      toast({
+        title: "Update Successful",
+        description: "Bed availability has been updated.",
+        variant: "default",
+      });
+      onUpdateSuccess(values); // Notify parent component
+      form.reset(values); // Keep form updated with latest successful submission
+    } catch (error) {
+      console.error("Error updating bed availability:", error);
+      toast({
+        title: "Update Failed",
+        description: "Could not update bed availability. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -98,9 +111,6 @@ export function BedAvailabilityForm({ currentAvailability }: BedAvailabilityForm
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <p className="text-sm text-muted-foreground">
-          Last updated: {new Date(currentAvailability.lastUpdated).toLocaleString()}
-        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {bedTypes.map(bedType => (
             <Card key={bedType.name} className="shadow-md">
@@ -117,7 +127,7 @@ export function BedAvailabilityForm({ currentAvailability }: BedAvailabilityForm
                     <FormItem>
                       <FormLabel>Available Beds</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} />
+                        <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -130,7 +140,7 @@ export function BedAvailabilityForm({ currentAvailability }: BedAvailabilityForm
                     <FormItem>
                       <FormLabel>Total Beds</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} />
+                        <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || 0)} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -140,8 +150,8 @@ export function BedAvailabilityForm({ currentAvailability }: BedAvailabilityForm
             </Card>
           ))}
         </div>
-        <Button type="submit" className="w-full md:w-auto" disabled={isLoading}>
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        <Button type="submit" className="w-full md:w-auto" disabled={isSubmitting}>
+          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           <RefreshCw className="mr-2 h-4 w-4" /> Update Availability
         </Button>
       </form>

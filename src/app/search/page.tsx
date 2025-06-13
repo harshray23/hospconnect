@@ -10,68 +10,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Filter, ListFilter, MapPin, Stethoscope, AlertTriangle, Loader2 } from 'lucide-react';
+import { Filter, ListFilter, MapPin, Stethoscope, AlertTriangle, Loader2, ServerCrash } from 'lucide-react';
 import type { RecommendHospitalsOutput } from '@/ai/flows/smart-hospital-recommendations';
-
-const mockHospitals: Hospital[] = [
-  {
-    id: '1',
-    name: 'City General Hospital',
-    address: '123 Main St, Anytown',
-    city: 'Anytown',
-    specialties: ['Cardiology', 'Neurology', 'Oncology'],
-    beds: {
-      icu: { available: 5, total: 20 },
-      oxygen: { available: 10, total: 30 },
-      ventilator: { available: 3, total: 10 },
-      general: { available: 25, total: 100 },
-    },
-    imageUrl: 'https://placehold.co/600x400.png',
-    dataAiHint: "hospital building",
-    rating: 4.5,
-    services: ["24/7 Emergency", "Pharmacy", "Radiology"],
-    contact: "555-1234",
-    distance: "2.1 km"
-  },
-  {
-    id: '2',
-    name: 'St. Luke’s Medical Center',
-    address: '456 Oak Ave, Anytown',
-    city: 'Anytown',
-    specialties: ['Pediatrics', 'Orthopedics'],
-    beds: {
-      icu: { available: 8, total: 15 },
-      oxygen: { available: 12, total: 25 },
-      ventilator: { available: 5, total: 8 },
-      general: { available: 40, total: 80 },
-    },
-    imageUrl: 'https://placehold.co/600x400.png',
-    dataAiHint: "modern hospital",
-    rating: 4.2,
-    services: ["Maternity Care", "Physical Therapy"],
-    contact: "555-5678",
-    distance: "5.5 km"
-  },
-  {
-    id: '3',
-    name: 'Community Health Clinic',
-    address: '789 Pine Rd, Otherville',
-    city: 'Otherville',
-    specialties: ['General Medicine', 'Family Practice'],
-    beds: {
-      icu: { available: 0, total: 0 }, // No ICU
-      oxygen: { available: 5, total: 10 },
-      ventilator: { available: 1, total: 2 },
-      general: { available: 15, total: 30 },
-    },
-    imageUrl: 'https://placehold.co/600x400.png',
-    dataAiHint: "clinic building",
-    rating: 3.9,
-    services: ["Vaccinations", "Urgent Care"],
-    contact: "555-9012",
-    distance: "12.8 km"
-  },
-];
+import { db } from '@/lib/firebase';
+import { collection, getDocs, query, where, DocumentData } from 'firebase/firestore';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const ALL_SPECIALTIES_VALUE = "_all_specialties_";
 const ANY_BED_TYPE_VALUE = "_any_bed_type_";
@@ -81,12 +24,42 @@ export default function SearchPage() {
   const [specialtyFilter, setSpecialtyFilter] = useState(ALL_SPECIALTIES_VALUE);
   const [bedTypeFilter, setBedTypeFilter] = useState(ANY_BED_TYPE_VALUE);
   const [locationFilter, setLocationFilter] = useState('');
-  const [filteredHospitals, setFilteredHospitals] = useState<Hospital[]>(mockHospitals);
+  
+  const [allHospitals, setAllHospitals] = useState<Hospital[]>([]);
+  const [filteredHospitals, setFilteredHospitals] = useState<Hospital[]>([]);
+  const [isLoadingHospitals, setIsLoadingHospitals] = useState(true);
+  const [errorLoadingHospitals, setErrorLoadingHospitals] = useState<string | null>(null);
+
   const [recommendedHospitals, setRecommendedHospitals] = useState<string[] | null>(null);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
+  const [allSpecialties, setAllSpecialties] = useState<string[]>([]);
 
   useEffect(() => {
-    let hospitals = mockHospitals;
+    const fetchHospitals = async () => {
+      setIsLoadingHospitals(true);
+      setErrorLoadingHospitals(null);
+      try {
+        const hospitalsCollectionRef = collection(db, 'hospitals');
+        const hospitalSnapshot = await getDocs(hospitalsCollectionRef);
+        const fetchedHospitals: Hospital[] = hospitalSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Hospital));
+        setAllHospitals(fetchedHospitals);
+        setFilteredHospitals(fetchedHospitals);
+
+        const specialties = Array.from(new Set(fetchedHospitals.flatMap(h => h.specialties))).sort();
+        setAllSpecialties(specialties);
+
+      } catch (error) {
+        console.error("Error fetching hospitals:", error);
+        setErrorLoadingHospitals("Failed to load hospitals. Please try again later.");
+      } finally {
+        setIsLoadingHospitals(false);
+      }
+    };
+    fetchHospitals();
+  }, []);
+
+  useEffect(() => {
+    let hospitals = allHospitals;
     if (searchTerm) {
       hospitals = hospitals.filter(h => h.name.toLowerCase().includes(searchTerm.toLowerCase()));
     }
@@ -95,15 +68,15 @@ export default function SearchPage() {
     }
     if (bedTypeFilter && bedTypeFilter !== ANY_BED_TYPE_VALUE) {
       hospitals = hospitals.filter(h => {
-        const bed = bedTypeFilter as keyof Hospital['beds'];
+        const bed = bedTypeFilter as keyof Hospital['beds']; // e.g. 'icu'
         return h.beds[bed] && h.beds[bed].available > 0;
       });
     }
     if (locationFilter) {
-      hospitals = hospitals.filter(h => h.city.toLowerCase().includes(locationFilter.toLowerCase()));
+      hospitals = hospitals.filter(h => h.city.toLowerCase().includes(locationFilter.toLowerCase()) || h.address.toLowerCase().includes(locationFilter.toLowerCase()));
     }
     setFilteredHospitals(hospitals);
-  }, [searchTerm, specialtyFilter, bedTypeFilter, locationFilter]);
+  }, [searchTerm, specialtyFilter, bedTypeFilter, locationFilter, allHospitals]);
 
   const handleRecommendationsFetched = (data: RecommendHospitalsOutput | null) => {
     if (data) {
@@ -113,8 +86,6 @@ export default function SearchPage() {
     }
     setIsLoadingRecommendations(false);
   };
-  
-  const allSpecialties = Array.from(new Set(mockHospitals.flatMap(h => h.specialties))).sort();
 
   return (
     <div className="space-y-8">
@@ -132,7 +103,7 @@ export default function SearchPage() {
             value={locationFilter}
             onChange={e => setLocationFilter(e.target.value)}
           />
-          <Select value={specialtyFilter} onValueChange={setSpecialtyFilter}>
+          <Select value={specialtyFilter} onValueChange={setSpecialtyFilter} disabled={isLoadingHospitals || !!errorLoadingHospitals}>
             <SelectTrigger>
               <Stethoscope className="h-4 w-4 mr-2 text-muted-foreground" />
               <SelectValue placeholder="Filter by specialty" />
@@ -144,7 +115,7 @@ export default function SearchPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={bedTypeFilter} onValueChange={setBedTypeFilter}>
+          <Select value={bedTypeFilter} onValueChange={setBedTypeFilter} disabled={isLoadingHospitals || !!errorLoadingHospitals}>
             <SelectTrigger>
               <ListFilter className="h-4 w-4 mr-2 text-muted-foreground" />
               <SelectValue placeholder="Filter by bed type" />
@@ -212,9 +183,36 @@ export default function SearchPage() {
 
       <section>
         <h2 className="text-2xl font-bold font-headline mb-6 flex items-center">
-          <ListFilter className="mr-2 h-6 w-6 text-primary" /> Search Results ({filteredHospitals.length})
+          <ListFilter className="mr-2 h-6 w-6 text-primary" /> 
+          Search Results ({isLoadingHospitals || errorLoadingHospitals ? "Loading..." : filteredHospitals.length})
         </h2>
-        {filteredHospitals.length > 0 ? (
+        {isLoadingHospitals ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1,2,3].map(i => (
+              <Card key={i} className="shadow-lg">
+                <Skeleton className="h-48 w-full" />
+                <CardContent className="p-4 space-y-2">
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-1/2" />
+                  <div className="space-y-1 border-t border-b py-3 my-3">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                  <Skeleton className="h-10 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : errorLoadingHospitals ? (
+           <Card className="text-center py-12 shadow-md bg-destructive/10 border-destructive">
+            <CardContent>
+              <ServerCrash className="h-16 w-16 text-destructive mx-auto mb-4" />
+              <p className="text-xl text-destructive font-semibold">{errorLoadingHospitals}</p>
+              <p className="text-sm text-destructive/80 mt-2">We're having trouble fetching hospital data right now.</p>
+            </CardContent>
+          </Card>
+        ) : filteredHospitals.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredHospitals.map(hospital => (
               <HospitalCard key={hospital.id} hospital={hospital} />
@@ -233,5 +231,3 @@ export default function SearchPage() {
     </div>
   );
 }
-
-    
