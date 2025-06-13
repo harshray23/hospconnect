@@ -119,8 +119,8 @@ export default function HomePage() {
           </h2>
           <div className="aspect-[16/9] w-full max-w-4xl mx-auto rounded-lg overflow-hidden shadow-2xl">
             <Image
-              src="/img.png"
-              alt="HospConnect - Connecting Care, Improving Lives"
+              src="/img_hospital.jpg"
+              alt="Hospital image representing HospConnect services"
               width={1200}
               height={675}
               className="object-cover w-full h-full"
