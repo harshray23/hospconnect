@@ -17,10 +17,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BedDouble, Loader2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect } from "react"; // Added useEffect
+import { useState, useEffect } from "react";
 import { db, auth } from "@/lib/firebase";
-import { doc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore"; // Added Timestamp
-import type { BedAvailabilityData, HospitalBedUpdatePayload } from "@/lib/types";
+import { doc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import type { BedAvailabilityData } from "@/lib/types";
 
 
 const bedInputSchema = z.object({
@@ -53,8 +53,7 @@ export function BedAvailabilityForm({ currentAvailability, hospitalId, onUpdateS
     defaultValues: currentAvailability,
   });
   
-  // Sync form with prop changes if currentAvailability is fetched async
-  useEffect(() => { // Changed useState to useEffect
+  useEffect(() => {
     form.reset(currentAvailability);
   }, [currentAvailability, form]);
 
@@ -72,20 +71,18 @@ export function BedAvailabilityForm({ currentAvailability, hospitalId, onUpdateS
       setIsSubmitting(false);
       return;
     }
-    // In a real app, verify if currentUser's custom claim or user profile indicates they are an admin for this hospitalId
+    // Future: Verify currentUser is an admin for this hospitalId via UserProfile
 
     try {
       const hospitalDocRef = doc(db, "hospitals", hospitalId);
-      // The schema has `lastUpdated` at the top level of the hospital document.
-      const updatePayload: HospitalBedUpdatePayload = { 
+      
+      // Firestore update payload
+      const updatePayload = { 
         beds: values,
-        lastUpdated: serverTimestamp() as Timestamp // Ensure it's treated as a server timestamp
+        lastUpdated: serverTimestamp() // Firestore server-side timestamp
       };
       
-      await updateDoc(hospitalDocRef, {
-        beds: updatePayload.beds,
-        lastUpdated: updatePayload.lastUpdated // This should be serverTimestamp()
-      });
+      await updateDoc(hospitalDocRef, updatePayload);
       
       toast({
         title: "Update Successful",
@@ -93,7 +90,7 @@ export function BedAvailabilityForm({ currentAvailability, hospitalId, onUpdateS
         variant: "default",
       });
       onUpdateSuccess(values); 
-      form.reset(values); 
+      // form.reset(values); // Keep form as is or reset to new values, current is fine.
     } catch (error) {
       console.error("Error updating bed availability:", error);
       toast({
@@ -155,7 +152,7 @@ export function BedAvailabilityForm({ currentAvailability, hospitalId, onUpdateS
             </Card>
           ))}
         </div>
-        <Button type="submit" className="w-full md:w-auto" disabled={isSubmitting}>
+        <Button type="submit" className="w-full md:w-auto" disabled={isSubmitting || !hospitalId}>
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           <RefreshCw className="mr-2 h-4 w-4" /> Update Availability
         </Button>

@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Filter, ListFilter, MapPin, Stethoscope, AlertTriangle, Loader2, ServerCrash, Zap } from 'lucide-react';
 import type { RecommendHospitalsOutput } from '@/ai/flows/smart-hospital-recommendations';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, DocumentData, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where, DocumentData, Timestamp, GeoPoint } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const ALL_SPECIALTIES_VALUE = "_all_specialties_";
@@ -24,7 +24,7 @@ export default function SearchPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [specialtyFilter, setSpecialtyFilter] = useState(ALL_SPECIALTIES_VALUE);
   const [bedTypeFilter, setBedTypeFilter] = useState(ANY_BED_TYPE_VALUE);
-  const [locationFilter, setLocationFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState(''); // Filters by address string
   const [emergencyFilter, setEmergencyFilter] = useState(ANY_EMERGENCY_VALUE); 
   
   const [allHospitals, setAllHospitals] = useState<Hospital[]>([]);
@@ -44,14 +44,24 @@ export default function SearchPage() {
         const hospitalsCollectionRef = collection(db, 'hospitals');
         const hospitalSnapshot = await getDocs(hospitalsCollectionRef);
         const fetchedHospitals: Hospital[] = hospitalSnapshot.docs.map(doc => {
-          const data = doc.data();
+          const data = doc.data() as DocumentData; // Use DocumentData for safety
+          // Ensure location and beds are at least empty objects if undefined from Firestore
+          const locationData = data.location || { address: 'N/A' };
           return { 
             id: doc.id, 
-            ...data,
-            // Ensure location and beds are at least empty objects if undefined from Firestore
-            location: data.location || { address: 'N/A' }, 
+            name: data.name || "Unknown Hospital",
+            location: {
+              address: locationData.address,
+              coordinates: locationData.coordinates instanceof GeoPoint ? locationData.coordinates : undefined,
+            },
+            contact: data.contact,
+            specialties: data.specialties || [],
             beds: data.beds || { icu: {}, general: {}, oxygen: {}, ventilator: {} },
+            emergencyAvailable: data.emergencyAvailable,
             lastUpdated: data.lastUpdated instanceof Timestamp ? data.lastUpdated.toDate().toISOString() : data.lastUpdated,
+            imageUrl: data.imageUrl,
+            rating: data.rating,
+            dataAiHint: data.dataAiHint
           } as Hospital;
         });
         setAllHospitals(fetchedHospitals);
@@ -71,7 +81,7 @@ export default function SearchPage() {
   }, []);
 
   useEffect(() => {
-    let hospitals = [...allHospitals]; // Create a copy to avoid mutating state directly
+    let hospitals = [...allHospitals]; 
 
     if (searchTerm) {
       hospitals = hospitals.filter(h => h.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -81,11 +91,13 @@ export default function SearchPage() {
     }
     if (bedTypeFilter && bedTypeFilter !== ANY_BED_TYPE_VALUE) {
       hospitals = hospitals.filter(h => {
-        const bed = bedTypeFilter as keyof Hospital['beds'];
-        return h.beds?.[bed]?.available > 0;
+        const bedKey = bedTypeFilter as keyof Hospital['beds'];
+        // Ensure h.beds and h.beds[bedKey] exist before accessing 'available'
+        return h.beds?.[bedKey]?.available > 0;
       });
     }
     if (locationFilter) {
+      // Filtering by address string
       hospitals = hospitals.filter(h => 
         h.location?.address?.toLowerCase().includes(locationFilter.toLowerCase())
       );

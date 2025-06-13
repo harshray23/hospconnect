@@ -28,15 +28,23 @@ function BedInfo({ label, available, total }: { label: string; available: number
 
 export function HospitalCard({ hospital }: HospitalCardProps) {
   const totalAvailableBeds = 
-    (hospital.beds.icu?.available || 0) + 
-    (hospital.beds.oxygen?.available || 0) + 
-    (hospital.beds.ventilator?.available || 0) + 
-    (hospital.beds.general?.available || 0);
+    (hospital.beds?.icu?.available || 0) + 
+    (hospital.beds?.oxygen?.available || 0) + 
+    (hospital.beds?.ventilator?.available || 0) + 
+    (hospital.beds?.general?.available || 0);
 
   let lastUpdatedText = "N/A";
   if (hospital.lastUpdated) {
-    const date = hospital.lastUpdated instanceof Timestamp ? hospital.lastUpdated.toDate() : new Date(hospital.lastUpdated);
-    lastUpdatedText = format(date, "Pp");
+    // Check if it's already a Date object (from serverTimestamp() direct usage or client-side new Date())
+    // or a Firestore Timestamp, or an ISO string
+    const date = hospital.lastUpdated instanceof Timestamp 
+                  ? hospital.lastUpdated.toDate() 
+                  : typeof hospital.lastUpdated === 'string' 
+                    ? new Date(hospital.lastUpdated)
+                    : hospital.lastUpdated; // Assuming it might be a Date object already
+    if (date instanceof Date && !isNaN(date.valueOf())) { // Check if valid date
+        lastUpdatedText = format(date, "Pp");
+    }
   }
 
 
@@ -49,7 +57,7 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
           width={600}
           height={400}
           className="w-full h-48 object-cover"
-          data-ai-hint={hospital.name.toLowerCase().includes("children") ? "children hospital" : "hospital building"}
+          data-ai-hint={hospital.dataAiHint || (hospital.name.toLowerCase().includes("children") ? "children hospital" : "hospital building")}
         />
         {hospital.rating !== undefined && (
           <Badge variant="default" className="absolute top-2 right-2 bg-primary/80 backdrop-blur-sm">
@@ -61,7 +69,8 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
         <CardTitle className="text-xl font-headline mb-1 truncate" title={hospital.name}>{hospital.name}</CardTitle>
         
         <CardDescription className="text-sm text-muted-foreground mb-2 flex items-start">
-          <MapPin className="w-4 h-4 mr-1 shrink-0 mt-0.5" /> {hospital.location.address}
+          <MapPin className="w-4 h-4 mr-1 shrink-0 mt-0.5" /> 
+          {hospital.location?.address || 'Address not available'}
         </CardDescription>
         
         {hospital.contact && (
@@ -71,25 +80,27 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
         )}
 
         {hospital.emergencyAvailable !== undefined && (
-           <CardDescription className={`text-sm mb-3 flex items-center font-medium ${hospital.emergencyAvailable ? 'text-green-600' : 'text-red-600'}`}>
+           <CardDescription className={`text-sm mb-3 flex items-center font-medium ${hospital.emergencyAvailable ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
             <Zap className="w-4 h-4 mr-1 shrink-0" /> Emergency: {hospital.emergencyAvailable ? "Available" : "Not Available"}
           </CardDescription>
         )}
 
         <div className="mb-3">
-          {hospital.specialties.slice(0, 3).map(spec => (
+          {(hospital.specialties || []).slice(0, 3).map(spec => (
             <Badge key={spec} variant="secondary" className="mr-1 mb-1 capitalize">{spec}</Badge>
           ))}
-          {hospital.specialties.length > 3 && <Badge variant="secondary">+{hospital.specialties.length - 3} more</Badge>}
+          {(hospital.specialties || []).length > 3 && <Badge variant="secondary">+{hospital.specialties.length - 3} more</Badge>}
         </div>
 
-        <div className="space-y-1 border-t border-b py-3 my-3">
-          <h4 className="text-sm font-semibold mb-1 text-foreground">Bed Availability:</h4>
-          <BedInfo label="ICU" available={hospital.beds.icu?.available || 0} total={hospital.beds.icu?.total || 0} />
-          <BedInfo label="Oxygen" available={hospital.beds.oxygen?.available || 0} total={hospital.beds.oxygen?.total || 0} />
-          <BedInfo label="Ventilator" available={hospital.beds.ventilator?.available || 0} total={hospital.beds.ventilator?.total || 0} />
-          <BedInfo label="General" available={hospital.beds.general?.available || 0} total={hospital.beds.general?.total || 0} />
-        </div>
+        {hospital.beds && (
+          <div className="space-y-1 border-t border-b py-3 my-3">
+            <h4 className="text-sm font-semibold mb-1 text-foreground">Bed Availability:</h4>
+            <BedInfo label="ICU" available={hospital.beds.icu?.available || 0} total={hospital.beds.icu?.total || 0} />
+            <BedInfo label="Oxygen" available={hospital.beds.oxygen?.available || 0} total={hospital.beds.oxygen?.total || 0} />
+            <BedInfo label="Ventilator" available={hospital.beds.ventilator?.available || 0} total={hospital.beds.ventilator?.total || 0} />
+            <BedInfo label="General" available={hospital.beds.general?.available || 0} total={hospital.beds.general?.total || 0} />
+          </div>
+        )}
         
          <p className="text-xs text-muted-foreground">Last Updated: {lastUpdatedText}</p>
 
@@ -102,7 +113,8 @@ export function HospitalCard({ hospital }: HospitalCardProps) {
           disabled={totalAvailableBeds === 0}
           variant={totalAvailableBeds > 0 ? "default" : "secondary"}
         >
-          <Link href={`/hospital/${hospital.id}/book`}> {/* This route doesn't exist yet */}
+          {/* This route needs to be created or updated if it exists */}
+          <Link href={`/hospital/${hospital.id}/book`}> 
             <BedDouble className="w-4 h-4 mr-2" /> 
             {totalAvailableBeds > 0 ? `Reserve a Bed (${totalAvailableBeds} available)` : 'Check Availability Details'}
           </Link>

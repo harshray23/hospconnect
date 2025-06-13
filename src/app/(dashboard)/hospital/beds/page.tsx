@@ -23,7 +23,7 @@ export default function HospitalBedsPage() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Placeholder for hospital ID - this should come from auth/user context -> UserProfile.hospitalId
+  // This should come from auth/user context -> UserProfile.hospitalId
   const hospitalId = MOCK_HOSPITAL_ID; 
 
   useEffect(() => {
@@ -42,14 +42,18 @@ export default function HospitalBedsPage() {
         const hospitalSnap = await getDoc(hospitalDocRef);
 
         if (hospitalSnap.exists()) {
-          const hospitalData = hospitalSnap.data() as Hospital; // Cast to Hospital type
-          setCurrentAvailability(hospitalData.beds);
+          const hospitalData = hospitalSnap.data() as Hospital;
+          setCurrentAvailability(hospitalData.beds); // beds object directly
           setHospitalName(hospitalData.name);
-          if (hospitalData.lastUpdated) { // Changed from lastBedUpdate
+          if (hospitalData.lastUpdated) {
              const updateTimestamp = hospitalData.lastUpdated instanceof Timestamp 
                 ? hospitalData.lastUpdated.toDate() 
-                : new Date(hospitalData.lastUpdated as string);
-            setLastUpdated(format(updateTimestamp, "PPPp")); // Using format for better display
+                : new Date(hospitalData.lastUpdated as string); // Assuming it might be an ISO string
+            if (!isNaN(updateTimestamp.valueOf())) { // Check if date is valid
+                 setLastUpdated(format(updateTimestamp, "PPPp"));
+            } else {
+                setLastUpdated("Invalid date");
+            }
           } else {
             setLastUpdated("Not available");
           }
@@ -68,8 +72,8 @@ export default function HospitalBedsPage() {
 
     const currentUser = auth.currentUser;
     if (currentUser) {
-        // In a real app, you'd fetch UserProfile for currentUser.uid,
-        // get their role and hospitalId if they are 'hospital' role.
+        // Future: Fetch UserProfile for currentUser.uid to get their role and hospitalId.
+        // For now, we proceed with MOCK_HOSPITAL_ID.
         fetchBedAvailability();
     } else {
         setError("You must be logged in as a hospital administrator to manage bed availability.");
@@ -77,11 +81,11 @@ export default function HospitalBedsPage() {
         toast({ title: "Access Denied", description: "Login as hospital admin.", variant: "destructive"});
     }
 
-  }, [hospitalId, toast]);
+  }, [hospitalId, toast]); // Added toast to dependency array
 
   const handleUpdateSuccess = (updatedData: BedAvailabilityData) => {
     setCurrentAvailability(updatedData);
-    setLastUpdated(format(new Date(), "PPPp")); // Update with current time formatted
+    setLastUpdated(format(new Date(), "PPPp")); 
   };
 
   if (isLoading) {
@@ -137,7 +141,7 @@ export default function HospitalBedsPage() {
         <CardContent>
           <BedAvailabilityForm
             currentAvailability={currentAvailability}
-            hospitalId={hospitalId} // Ensure hospitalId is passed
+            hospitalId={hospitalId}
             onUpdateSuccess={handleUpdateSuccess}
           />
         </CardContent>
