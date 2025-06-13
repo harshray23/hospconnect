@@ -22,20 +22,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Link from "next/link";
+import { useRouter } from "next/navigation"; // For redirection
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-// import { loginUser } from "@/lib/actions/auth"; // Placeholder for actual action
+import { auth } from "@/lib/firebase"; // Import Firebase auth
+import { signInWithEmailAndPassword } from "firebase/auth";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
-  role: z.enum(["patient", "hospital_admin"], { required_error: "Please select a role." }),
+  // Role selection at login is kept for now, but ideally role comes from user's profile/claims after login
+  role: z.enum(["patient", "hospital_admin", "platform_admin"], { required_error: "Please select a role." }),
 });
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -47,26 +51,44 @@ export function LoginForm() {
 
   async function onSubmit(values: z.infer<typeof loginSchema>) {
     setIsLoading(true);
-    // const result = await loginUser(values); // Placeholder
-    // For demonstration purposes:
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    const result = { success: true, message: "Login successful!", role: values.role }; 
-    
-    setIsLoading(false);
-
-    if (result.success) {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      // User is logged in.
+      // NOTE: The role selected here (values.role) is only used for client-side redirection.
+      // Real authorization should be based on custom claims or a fetched user profile.
       toast({
         title: "Login Successful",
-        description: `Welcome back! Redirecting to your ${result.role} dashboard...`,
+        description: `Welcome back! Redirecting to your dashboard...`,
         variant: "default",
       });
-      // Add redirection logic here, e.g., router.push(`/${result.role}/dashboard`);
-    } else {
+
+      // Redirect based on the role selected in the form.
+      // A more robust solution would fetch the user's actual role from Firestore or claims.
+      if (values.role === "patient") {
+        router.push("/patient/dashboard");
+      } else if (values.role === "hospital_admin") {
+        router.push("/hospital/dashboard");
+      } else if (values.role === "platform_admin") {
+        router.push("/platform-admin/announcements"); // Example platform admin route
+      } else {
+        router.push("/"); // Fallback
+      }
+
+    } catch (error: any) {
+      let errorMessage = "Invalid credentials or role. Please try again.";
+      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        errorMessage = "Invalid email or password.";
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage = "Too many login attempts. Please try again later.";
+      }
+      console.error("Login error:", error);
       toast({
         title: "Login Failed",
-        description: result.message || "Invalid credentials or role. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -114,6 +136,7 @@ export function LoginForm() {
                 <SelectContent>
                   <SelectItem value="patient">Patient</SelectItem>
                   <SelectItem value="hospital_admin">Hospital Admin</SelectItem>
+                  <SelectItem value="platform_admin">Platform Admin</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />

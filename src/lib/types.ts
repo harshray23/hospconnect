@@ -71,14 +71,16 @@ export interface Complaint {
   ticketId?: string;
 }
 
-export type UserRole = 'patient' | 'hospital' | 'admin' | 'platform_admin' | 'health_department_official';
+export type UserRole = 'patient' | 'hospital_admin' | 'platform_admin' | 'health_department_official' | ''; // Added '' for initial/loading state
 
 export interface UserProfile {
-  id: string; // Firebase Auth UID
+  uid: string; // Firebase Auth UID
   name: string;
-  email?: string;
+  email: string | null; // Email from Auth
   role: UserRole;
-  hospitalId?: string; // If role is 'hospital' (hospital admin)
+  hospitalId?: string; // If role is 'hospital_admin'
+  profilePictureUrl?: string;
+  createdAt: Timestamp | string;
 }
 
 export interface BedAvailabilityData {
@@ -101,3 +103,4 @@ export interface Announcement {
   targetAudience: 'all_hospitals' | 'specific_hospitals';
   hospitalIds?: string[];
 }
+

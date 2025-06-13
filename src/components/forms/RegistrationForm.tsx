@@ -23,10 +23,15 @@ import {
 } from "@/components/ui/select";
 import Link from "next/link";
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Loader2, ImageUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-// import { registerUser } from "@/lib/actions/auth"; // Placeholder
+import { auth, db } from "@/lib/firebase"; // Import Firebase auth and db
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore"; // For creating user profile
+import type { UserProfile } from "@/lib/types";
+
+// TODO: Integrate Firebase Storage for profile picture upload
 
 const registrationSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -50,6 +55,7 @@ const registrationSchema = z.object({
 
 export function RegistrationForm() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const initialRole = searchParams.get("role") === "hospital" ? "hospital_admin" : "patient";
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -71,51 +77,66 @@ export function RegistrationForm() {
 
   async function onSubmit(values: z.infer<typeof registrationSchema>) {
     setIsLoading(true);
-    // Placeholder for actual registration logic
-    console.log("Form values submitted:", values);
+    let profilePictureUrl: string | undefined = undefined; // Placeholder for actual upload URL
 
-    let profileImageUrl: string | undefined = undefined;
-
+    // Placeholder: Profile picture upload logic would go here
     if (values.profilePicture && values.profilePicture.length > 0) {
       const file = values.profilePicture[0];
-      console.log("Profile picture selected:", {
-        name: file.name,
-        type: file.type,
-        size: file.size,
-      });
-      // TODO: Implement Firebase Storage upload here
-      // 1. Upload `file` to Firebase Storage (e.g., to a path like `hospital-profiles/{hospitalId}/profileImage.jpg`)
-      // 2. Get the downloadURL of the uploaded image. This URL (profileImageUrl) would then be saved
-      //    with the hospital's data in Firestore.
-      // For now, we'll just show a toast.
+      // TODO: Implement Firebase Storage upload here.
+      // For now, simulate success and get a placeholder URL.
+      // profilePictureUrl = await uploadFileToFirebaseStorage(file); // This function needs to be created
       toast({
-        title: "Profile Picture Selected",
-        description: `File: ${file.name}. In a real app, this would now be uploaded.`,
+        title: "Profile Picture Selected (Placeholder)",
+        description: `File: ${file.name}. Actual upload to Firebase Storage is needed.`,
       });
-      // profileImageUrl = "url_from_firebase_storage_after_upload"; // Placeholder
+      // profilePictureUrl = "https://placehold.co/100x100.png"; // Example placeholder
     }
 
-    // const result = await registerUser({...values, profileImageUrl }); // Placeholder
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    const result = { success: true, message: "Registration successful!" };
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
 
-    setIsLoading(false);
+      // Create user profile document in Firestore
+      const userProfileData: Omit<UserProfile, 'uid' | 'createdAt'> & { hospitalNameIfAdmin?: string } = { // Omit uid as it's the doc ID
+        name: values.name,
+        email: user.email,
+        role: values.role,
+        profilePictureUrl: profilePictureUrl, // Store the URL from storage
+        ...(values.role === 'hospital_admin' && { hospitalId: values.hospitalName }), // Conditionally add hospitalId (placeholder for now, should be a proper ID)
+      };
+      
+      // Note: For hospital_admin, values.hospitalName is used as hospitalId.
+      // In a real system, you might need to look up or create a hospital document and get its ID.
+      // For now, we're using the name as a placeholder for the ID.
+      // A Firebase Function (e.g., onCreate) would typically handle setting custom claims based on this 'role'.
 
-    if (result.success) {
+      await setDoc(doc(db, "users", user.uid), {
+        ...userProfileData,
+        createdAt: serverTimestamp(), // Use server timestamp
+      });
+
       toast({
         title: "Registration Successful",
         description: "Your account has been created. Please login.",
         variant: "default",
       });
-      // Add redirection to login page: router.push('/login');
-      form.reset(); // Reset form fields including file input
-    } else {
+      router.push('/login'); // Redirect to login page
+      form.reset();
+    } catch (error: any) {
+      let errorMessage = "Could not create account. Please try again.";
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = "This email address is already in use.";
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = "The password is too weak.";
+      }
+      console.error("Registration error:", error);
       toast({
         title: "Registration Failed",
-        description: result.message || "Could not create account. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -203,7 +224,7 @@ export function RegistrationForm() {
               name="hospitalName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Hospital Name</FormLabel>
+                  <FormLabel>Hospital Name (This will be used as a temporary Hospital ID)</FormLabel>
                   <FormControl>
                     <Input placeholder="City General Hospital" {...field} />
                   </FormControl>
@@ -214,7 +235,7 @@ export function RegistrationForm() {
             <FormField
               control={form.control}
               name="profilePicture"
-              render={({ field: { onChange, value, ...restField }}) => ( // Correctly destructure field
+              render={({ field: { onChange, value, ...restField }}) => (
                 <FormItem>
                   <FormLabel>Hospital Profile Picture (Optional)</FormLabel>
                   <FormControl>
@@ -224,10 +245,10 @@ export function RegistrationForm() {
                         type="file"
                         accept="image/*"
                         onChange={(event) => {
-                           onChange(event.target.files); // Pass FileList to RHF
+                           onChange(event.target.files);
                         }}
                         className="border-dashed border-input hover:border-primary transition-colors"
-                        {...restField} // Pass other RHF props
+                        {...restField}
                       />
                     </div>
                   </FormControl>
@@ -252,4 +273,3 @@ export function RegistrationForm() {
     </Form>
   );
 }
-
