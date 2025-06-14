@@ -13,29 +13,32 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Input } from "@/components/ui/input"; // Added for optional name/email
 import { Textarea } from "@/components/ui/textarea";
-// RadioGroup and RadioGroupItem are not used in the star rating, can be removed if not needed elsewhere.
-// import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group" 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send, Star, ServerCrash } from "lucide-react";
 import { useState, useEffect } from "react";
-import { db, auth } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase"; // auth might not be used for submission if public
 import { collection, addDoc, serverTimestamp, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
 import type { Hospital } from "@/lib/types"; 
 
+// Schema for public feedback
 const feedbackSchema = z.object({
+  submitterName: z.string().min(2, "Name must be at least 2 characters.").optional(),
+  submitterEmail: z.string().email("Invalid email address.").optional(),
   hospitalId: z.string({ required_error: "Please select a hospital." }).min(1, "Please select a hospital."),
   rating: z.coerce.number().min(1, "Rating is required (1-5 stars)").max(5, "Rating cannot exceed 5"),
-  comment: z.string().min(10, { message: "Comment must be at least 10 characters." }).max(1000, "Comment cannot exceed 1000 characters."), // Renamed from comments
+  comment: z.string().min(10, { message: "Comment must be at least 10 characters." }).max(1000, "Comment cannot exceed 1000 characters."),
 });
 
 export function FeedbackForm() {
-  const [isLoadingHospitals, setIsLoadingHospitals] = useState(false); // Renamed for clarity
+  const [isLoadingHospitals, setIsLoadingHospitals] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [errorLoadingHospitals, setErrorLoadingHospitals] = useState<string | null>(null);
   const { toast } = useToast();
+  const currentUser = auth.currentUser; // Check if someone is logged in (e.g., admin)
 
   useEffect(() => {
     const fetchHospitals = async () => {
@@ -48,7 +51,6 @@ export function FeedbackForm() {
         const fetchedHospitals: Hospital[] = hospitalSnapshot.docs.map(doc => ({ 
           id: doc.id, 
           ...doc.data(),
-          // Ensure location and beds are at least empty objects if undefined from Firestore
           location: doc.data().location || { address: 'N/A' },
           beds: doc.data().beds || { icu: {}, general: {}, oxygen: {}, ventilator: {} },
          } as Hospital));
@@ -71,25 +73,17 @@ export function FeedbackForm() {
   const form = useForm<z.infer<typeof feedbackSchema>>({
     resolver: zodResolver(feedbackSchema),
     defaultValues: {
+      submitterName: "",
+      submitterEmail: "",
       hospitalId: "",
-      rating: 0, // Initialize with 0, user must select a rating
+      rating: 0,
       comment: "",
     },
   });
 
   async function onSubmit(values: z.infer<typeof feedbackSchema>) {
     setIsSubmitting(true);
-    const currentUser = auth.currentUser;
 
-    if (!currentUser) {
-      toast({
-        title: "Authentication Required",
-        description: "You must be logged in to submit feedback.",
-        variant: "destructive",
-      });
-      setIsSubmitting(false);
-      return;
-    }
     if (values.rating === 0) {
         toast({
             title: "Rating Required",
@@ -100,23 +94,33 @@ export function FeedbackForm() {
         return;
     }
 
-
     try {
       const selectedHospital = hospitals.find(h => h.id === values.hospitalId);
-      await addDoc(collection(db, "feedback"), {
+      const feedbackData: any = {
         hospitalId: values.hospitalId,
-        hospitalName: selectedHospital?.name || "N/A", // Denormalize hospital name
-        patientId: currentUser.uid, // Use UID of the logged-in user as patientId
+        hospitalName: selectedHospital?.name || "N/A",
         rating: values.rating,
         comment: values.comment,
-        submittedAt: serverTimestamp() as Timestamp, // Firestore server timestamp
-      });
+        submittedAt: serverTimestamp() as Timestamp,
+      };
+
+      if (currentUser) { // If a user (likely admin) is logged in and submitting
+        feedbackData.patientId = currentUser.uid; // Or some admin identifier
+        feedbackData.name = currentUser.displayName || values.submitterName; // Prefer logged-in user's name
+        feedbackData.email = currentUser.email || values.submitterEmail;
+      } else { // Public submission
+        if (values.submitterName) feedbackData.name = values.submitterName;
+        if (values.submitterEmail) feedbackData.email = values.submitterEmail;
+      }
+      
+      await addDoc(collection(db, "feedback"), feedbackData);
+
       toast({
         title: "Feedback Submitted",
         description: "Thank you for your feedback!",
         variant: "default",
       });
-      form.reset({ hospitalId: "", rating: 0, comment: "" }); // Reset form
+      form.reset({ submitterName: "", submitterEmail: "", hospitalId: "", rating: 0, comment: "" });
     } catch (error) {
       console.error("Error submitting feedback:", error);
       toast({
@@ -137,10 +141,39 @@ export function FeedbackForm() {
     return <div className="text-destructive flex items-center space-x-2"><ServerCrash className="h-5 w-5" /> <span>{errorLoadingHospitals}</span></div>;
   }
 
-
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+         {!currentUser && ( // Only show these for public, non-logged-in users
+            <>
+                <FormField
+                control={form.control}
+                name="submitterName"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Your Name (Optional)</FormLabel>
+                    <FormControl>
+                        <Input placeholder="e.g., John Doe" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <FormField
+                control={form.control}
+                name="submitterEmail"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Your Email (Optional)</FormLabel>
+                    <FormControl>
+                        <Input type="email" placeholder="your.email@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+            </>
+        )}
         <FormField
           control={form.control}
           name="hospitalId"
@@ -163,7 +196,6 @@ export function FeedbackForm() {
             </FormItem>
           )}
         />
-
         <FormField
           control={form.control}
           name="rating"
@@ -191,7 +223,6 @@ export function FeedbackForm() {
             </FormItem>
           )}
         />
-
         <FormField
           control={form.control}
           name="comment" 

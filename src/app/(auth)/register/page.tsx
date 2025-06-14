@@ -3,8 +3,8 @@
 
 import React, { Suspense } from 'react';
 import { RegistrationForm } from '@/components/forms/RegistrationForm';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'; // Added Loader2 for fallback
-import { UserPlus, Loader2 } from 'lucide-react'; // Added Loader2 for fallback
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { UserPlus, Loader2, HospitalIcon } from 'lucide-react'; // Changed icon
 
 export default function RegisterPage() {
   return (
@@ -12,13 +12,13 @@ export default function RegisterPage() {
       <Card className="w-full max-w-lg shadow-xl">
         <CardHeader className="text-center">
            <div className="mx-auto bg-primary/10 p-3 rounded-full w-fit mb-4">
-            <UserPlus className="h-10 w-10 text-primary" />
+            <HospitalIcon className="h-10 w-10 text-primary" />
           </div>
-          <CardTitle className="text-3xl font-headline">Create an Account</CardTitle>
-          <CardDescription>Join HospConnect to access healthcare services or manage your hospital.</CardDescription>
+          <CardTitle className="text-3xl font-headline">Register Your Hospital</CardTitle>
+          <CardDescription>Join HospConnect to list your services and manage availability.</CardDescription>
         </CardHeader>
         <CardContent>
- <Suspense fallback={
+          <Suspense fallback={
             <div className="flex flex-col items-center justify-center space-y-2 py-8">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <p className="text-muted-foreground">Loading registration form...</p>
@@ -31,4 +31,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-

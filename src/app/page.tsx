@@ -3,29 +3,29 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Image from 'next/image';
 import Link from 'next/link';
-import { BedDouble, Search, MessageSquareHeart, ShieldCheck, Activity, Users, HeartPulse } from 'lucide-react';
+import { BedDouble, Search, MessageSquareHeart, ShieldCheck, Activity, Users, HeartPulse, HospitalIcon } from 'lucide-react'; // Added HospitalIcon
 
 export default function HomePage() {
   const features = [
     {
       icon: <BedDouble className="h-10 w-10 text-primary" />,
       title: 'Real-Time Bed Availability',
-      description: 'Live updates on ICU, oxygen, ventilator, and general beds.',
+      description: 'Live updates on ICU, oxygen, ventilator, and general beds (Managed by Hospitals).',
     },
     {
       icon: <Search className="h-10 w-10 text-primary" />,
-      title: 'Hospital Search & Booking',
-      description: 'Find nearby hospitals, filter by specialty, and reserve beds.',
+      title: 'Public Hospital Search',
+      description: 'Anyone can find nearby hospitals and filter by specialty.',
     },
     {
       icon: <Activity className="h-10 w-10 text-primary" />,
       title: 'Smart Recommendations',
-      description: 'AI-powered suggestions for the best hospitals based on your needs.',
+      description: 'AI-powered suggestions for the best hospitals (Public Access).',
     },
     {
       icon: <MessageSquareHeart className="h-10 w-10 text-primary" />,
       title: 'Feedback & Complaints',
-      description: 'Share your experiences and help improve healthcare services.',
+      description: 'General users can share experiences to help improve services (Public Forms).',
     },
   ];
 
@@ -40,7 +40,7 @@ export default function HomePage() {
           </h1>
           <p className="text-lg md:text-xl text-foreground/80 mb-10 max-w-3xl mx-auto">
             Connecting you to the right hospital, right when you need it.
-            Find real-time bed availability, search for specialized care, and book appointments seamlessly.
+            The public can find real-time bed availability and hospital services. Hospitals can register to manage their information.
           </p>
           <div className="space-x-4">
             <Button size="lg" asChild className="shadow-lg hover:shadow-xl transition-shadow">
@@ -49,7 +49,9 @@ export default function HomePage() {
               </Link>
             </Button>
             <Button size="lg" variant="secondary" asChild className="shadow-lg hover:shadow-xl transition-shadow">
-              <Link href="/register?role=hospital">Register Your Hospital</Link>
+              <Link href="/register"> 
+                <HospitalIcon className="mr-2 h-5 w-5" /> Register Your Hospital
+              </Link>
             </Button>
           </div>
         </div>
@@ -88,23 +90,23 @@ export default function HomePage() {
           <div className="grid md:grid-cols-3 gap-8 text-center">
             <div className="flex flex-col items-center p-6">
               <ShieldCheck className="h-16 w-16 text-accent mb-4" />
-              <h3 className="text-xl font-semibold mb-2 font-headline">Reliable & Secure</h3>
+              <h3 className="text-xl font-semibold mb-2 font-headline">Reliable Information</h3>
               <p className="text-muted-foreground">
-                Trusted information and secure data handling for peace of mind.
+                Data managed directly by registered hospitals.
               </p>
             </div>
             <div className="flex flex-col items-center p-6">
               <Users className="h-16 w-16 text-accent mb-4" />
-              <h3 className="text-xl font-semibold mb-2 font-headline">Patient-Centric</h3>
+              <h3 className="text-xl font-semibold mb-2 font-headline">Community Focused</h3>
               <p className="text-muted-foreground">
-                Designed with your needs first, ensuring easy access to care.
+                Designed for easy public access to vital healthcare information.
               </p>
             </div>
             <div className="flex flex-col items-center p-6">
               <BedDouble className="h-16 w-16 text-accent mb-4" />
               <h3 className="text-xl font-semibold mb-2 font-headline">Comprehensive Data</h3>
               <p className="text-muted-foreground">
-                Up-to-date bed availability and hospital facility information.
+                Up-to-date bed availability and hospital facility details.
               </p>
             </div>
           </div>

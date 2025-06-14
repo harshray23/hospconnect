@@ -1,3 +1,4 @@
+
 import { LoginForm } from '@/components/forms/LoginForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LogIn } from 'lucide-react';
@@ -10,8 +11,8 @@ export default function LoginPage() {
           <div className="mx-auto bg-primary/10 p-3 rounded-full w-fit mb-4">
             <LogIn className="h-10 w-10 text-primary" />
           </div>
-          <CardTitle className="text-3xl font-headline">Login to HospConnect</CardTitle>
-          <CardDescription>Access your dashboard or find hospital services.</CardDescription>
+          <CardTitle className="text-3xl font-headline">Hospital Portal Login</CardTitle>
+          <CardDescription>Access your hospital's dashboard to manage services.</CardDescription>
         </CardHeader>
         <CardContent>
           <LoginForm />

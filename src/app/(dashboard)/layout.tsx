@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import React, { useEffect, useState, useMemo } from 'react'; // Added React, useEffect, useState, useMemo
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   SidebarProvider,
   Sidebar,
@@ -15,34 +15,29 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
 } from '@/components/ui/sidebar';
-import { Hospital, LayoutDashboard, UserCircle, MessageSquareText, AlertOctagon, LogOut, BedDouble, Stethoscope, UserPlus, Loader2, ShieldAlert } from 'lucide-react';
+import { LayoutDashboard, LogOut, BedDouble, Stethoscope, UserPlus, MessageSquareText, AlertOctagon, Loader2, ShieldAlert, Hospital as HospitalIconLucide, Megaphone } from 'lucide-react'; // Renamed Hospital to HospitalIconLucide, added Megaphone
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { auth, db } from '@/lib/firebase'; // Import auth and db
-import { onAuthStateChanged, signOut, type User as FirebaseUser } from 'firebase/auth'; // Import onAuthStateChanged and signOut
-import { doc, getDoc } from 'firebase/firestore'; // Import doc and getDoc
-import type { UserProfile, UserRole } from '@/lib/types'; // Import UserProfile and UserRole types
+import { auth, db } from '@/lib/firebase';
+import { onAuthStateChanged, signOut, type User as FirebaseUser } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import type { UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 
-const patientNavItems = [
-  { href: '/patient/dashboard', label: 'Overview', icon: <LayoutDashboard /> },
-  { href: '/patient/bookings', label: 'My Bookings', icon: <BedDouble /> }, // Assuming bookings page exists or will be created
-  { href: '/patient/feedback', label: 'My Feedback', icon: <MessageSquareText /> },
-  { href: '/patient/complaints', label: 'My Complaints', icon: <AlertOctagon /> },
-];
+// Removed patientNavItems
 
 const hospitalAdminNavItems = [
   { href: '/hospital/dashboard', label: 'Overview', icon: <LayoutDashboard /> },
   { href: '/hospital/beds', label: 'Bed Availability', icon: <BedDouble /> },
   { href: '/hospital/admissions', label: 'Manage Admissions', icon: <UserPlus /> },
-  { href: '/hospital/bookings', label: 'Manage Bookings', icon: <Stethoscope /> }, // Assuming bookings page exists
-  { href: '/hospital/feedback', label: 'Patient Feedback', icon: <MessageSquareText /> }, // Assuming feedback review page exists
-  { href: '/hospital/complaints', label: 'Manage Complaints', icon: <AlertOctagon /> }, // Assuming complaint review page exists
+  { href: '/hospital/bookings', label: 'Manage Bookings', icon: <Stethoscope /> },
+  { href: '/hospital/feedback', label: 'Patient Feedback', icon: <MessageSquareText /> },
+  { href: '/hospital/complaints', label: 'Manage Complaints', icon: <AlertOctagon /> },
 ];
 
 const platformAdminNavItems = [
-  { href: '/platform-admin/announcements', label: 'Announcements', icon: <LayoutDashboard /> },
-  // Add more platform admin specific links here
+  { href: '/platform-admin/announcements', label: 'Announcements', icon: <Megaphone /> }, // Changed icon
+  // Add more platform admin specific links here like user management, hospital management etc.
 ];
 
 
@@ -60,17 +55,23 @@ export default function DashboardLayout({
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        // User is signed in, fetch their profile from Firestore
         const userDocRef = doc(db, "users", firebaseUser.uid);
         try {
           const userDocSnap = await getDoc(userDocRef);
           if (userDocSnap.exists()) {
-            setUserProfile({ uid: firebaseUser.uid, ...userDocSnap.data() } as UserProfile);
+            const profile = { uid: firebaseUser.uid, ...userDocSnap.data() } as UserProfile;
+            // Ensure only hospital_admin or platform_admin can access dashboard areas
+            if (profile.role === 'hospital_admin' || profile.role === 'platform_admin') {
+              setUserProfile(profile);
+            } else {
+              toast({ title: "Access Denied", description: "You do not have permission to access this dashboard.", variant: "destructive" });
+              await signOut(auth);
+              router.push('/login'); // Or homepage '/'
+            }
           } else {
-            console.error("No user profile found in Firestore for UID:", firebaseUser.uid);
+            console.error("No user profile found for UID:", firebaseUser.uid);
             toast({ title: "Profile Error", description: "User profile not found.", variant: "destructive" });
-            // Potentially redirect to a profile setup page or logout
-            await signOut(auth); // Sign out if profile is missing
+            await signOut(auth);
             router.push('/login');
           }
         } catch (error) {
@@ -80,21 +81,20 @@ export default function DashboardLayout({
             router.push('/login');
         }
       } else {
-        // User is signed out
         setUserProfile(null);
-        router.push('/login'); // Redirect to login if not authenticated
+        router.push('/login');
       }
       setIsLoadingAuth(false);
     });
 
-    return () => unsubscribe(); // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, [router, toast]);
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
       toast({ title: "Logged Out", description: "You have been successfully logged out." });
-      router.push('/login'); // Redirect to login page after logout
+      router.push('/login');
     } catch (error) {
       console.error("Logout error:", error);
       toast({ title: "Logout Error", description: "Failed to log out. Please try again.", variant: "destructive" });
@@ -103,29 +103,27 @@ export default function DashboardLayout({
   
   const navItems = useMemo(() => {
     if (!userProfile) return [];
+    // Removed 'patient' case
     switch (userProfile.role) {
-      case 'patient':
-        return patientNavItems;
       case 'hospital_admin':
         return hospitalAdminNavItems;
       case 'platform_admin':
         return platformAdminNavItems;
       default:
-        return [];
+        return []; // Should not happen if access control in useEffect is correct
     }
   }, [userProfile]);
 
   const baseDashboardPath = useMemo(() => {
-     if (!userProfile) return "/";
+     if (!userProfile) return "/login"; // Default to login if no profile
+     // Removed 'patient' case
      switch (userProfile.role) {
-      case 'patient':
-        return '/patient/dashboard';
       case 'hospital_admin':
         return '/hospital/dashboard';
       case 'platform_admin':
-        return '/platform-admin/announcements'; // Example
+        return '/platform-admin/announcements';
       default:
-        return "/";
+        return "/login"; // Fallback to login
     }
   }, [userProfile]);
 
@@ -140,12 +138,11 @@ export default function DashboardLayout({
   }
 
   if (!userProfile) {
-    // This should ideally not be reached if redirection in useEffect works, but as a fallback:
     return (
          <div className="flex flex-col justify-center items-center min-h-screen">
             <ShieldAlert className="h-16 w-16 text-destructive mb-4"/>
             <p className="text-xl mb-2">Access Denied</p>
-            <p className="text-muted-foreground mb-6">You need to be logged in to view this page.</p>
+            <p className="text-muted-foreground mb-6">You need to be logged in as hospital staff to view this page.</p>
             <Button asChild>
                 <Link href="/login">Go to Login</Link>
             </Button>
@@ -156,17 +153,20 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider defaultOpen>
-      <div className="flex min-h-[calc(100vh-5rem-1px)]"> {/* Adjust based on header/footer height */}
+      <div className="flex min-h-[calc(100vh-5rem-1px)]">
         <Sidebar collapsible="icon" variant="sidebar" className="border-r">
           <SidebarHeader className="p-4">
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10">
-                <AvatarImage src={userProfile.profilePictureUrl || `https://placehold.co/100x100.png?text=${userProfile.name?.[0]}`} alt={userProfile.name || 'User'} data-ai-hint="profile avatar" />
-                <AvatarFallback>{userProfile.name ? userProfile.name.substring(0,2).toUpperCase() : 'U'}</AvatarFallback>
+                <AvatarImage src={userProfile.profilePictureUrl || `https://placehold.co/100x100.png?text=${userProfile.name?.[0]}`} alt={userProfile.name || 'User'} data-ai-hint="profile avatar hospital logo" />
+                <AvatarFallback>{userProfile.name ? userProfile.name.substring(0,2).toUpperCase() : 'HA'}</AvatarFallback>
               </Avatar>
               <div className="group-data-[collapsible=icon]:hidden">
                 <p className="font-semibold text-sm">{userProfile.name}</p>
                 <p className="text-xs text-muted-foreground">{userProfile.email}</p>
+                 {userProfile.role === 'hospital_admin' && userProfile.hospitalId && (
+                    <p className="text-xs text-muted-foreground">Hospital: {userProfile.hospitalId}</p>
+                 )}
               </div>
             </div>
           </SidebarHeader>
@@ -193,11 +193,22 @@ export default function DashboardLayout({
               <LogOut className="h-5 w-5 mr-2 group-data-[collapsible=icon]:mr-0" />
               <span className="group-data-[collapsible=icon]:hidden">Logout</span>
             </Button>
-            {userProfile.role === 'hospital_admin' && (
+            {/* Link to Platform Admin area for users with platform_admin role */}
+            {userProfile.role === 'platform_admin' && pathname.startsWith('/hospital') && (
                  <Button variant="link" className="w-full justify-start group-data-[collapsible=icon]:justify-center text-xs mt-2" asChild>
                     <Link href="/platform-admin/announcements">
-                        <span className="group-data-[collapsible=icon]:hidden">Platform Admin Area</span>
-                        <Hospital className="h-4 w-4 group-data-[collapsible=icon]:block hidden"/>
+                        <span className="group-data-[collapsible=icon]:hidden">Switch to Platform Admin</span>
+                        <HospitalIconLucide className="h-4 w-4 group-data-[collapsible=icon]:block hidden"/>
+                    </Link>
+                 </Button>
+            )}
+             {/* Link for hospital_admin to switch to platform admin, if they also have platform_admin capabilities (this is unusual, typically distinct roles) */}
+             {/* Or, if a hospital admin wants to see what platform admins see (e.g. announcements) */}
+            {userProfile.role === 'hospital_admin' && (
+                 <Button variant="link" className="w-full justify-start group-data-[collapsible=icon]:justify-center text-xs mt-2" asChild>
+                    <Link href="/platform-admin/announcements"> 
+                        <span className="group-data-[collapsible=icon]:hidden">View Platform Announcements</span>
+                        <Megaphone className="h-4 w-4 group-data-[collapsible=icon]:block hidden"/>
                     </Link>
                  </Button>
             )}

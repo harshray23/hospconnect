@@ -1,85 +1,47 @@
+
+// This page is likely to be removed or significantly re-purposed
+// as patients will no longer have a dedicated dashboard login.
+// For now, I'll leave a placeholder indicating this.
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { BedDouble, CalendarDays, MessageSquareHeart, AlertTriangle, Search } from "lucide-react";
+import { Info } from "lucide-react";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function PatientDashboardPage() {
-  const upcomingAppointments = [
-    { hospital: "City General Hospital", specialty: "Cardiology", date: "2024-08-15", time: "10:00 AM" },
-    // Add more mock appointments
-  ];
-
-  const quickActions = [
-    { label: "Find a Hospital", href: "/search", icon: <Search className="mr-2 h-4 w-4" /> },
-    { label: "View My Bookings", href: "/patient/bookings", icon: <BedDouble className="mr-2 h-4 w-4" /> },
-    { label: "Submit Feedback", href: "/patient/feedback/submit", icon: <MessageSquareHeart className="mr-2 h-4 w-4" /> },
-    { label: "File a Complaint", href: "/patient/complaints/submit", icon: <AlertTriangle className="mr-2 h-4 w-4" /> },
-  ];
-
   return (
     <div className="space-y-8">
       <Card className="shadow-md">
         <CardHeader>
-          <CardTitle className="text-3xl font-headline">Patient Dashboard</CardTitle>
-          <CardDescription>Welcome, John Patient. Manage your health journey with HospConnect.</CardDescription>
-        </CardHeader>
-      </Card>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle className="text-xl font-headline">Upcoming Appointments / Bookings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {upcomingAppointments.length > 0 ? (
-              <ul className="space-y-4">
-                {upcomingAppointments.map((appt, index) => (
-                  <li key={index} className="p-4 border rounded-md bg-secondary/50">
-                    <p className="font-semibold">{appt.hospital} - {appt.specialty}</p>
-                    <p className="text-sm text-muted-foreground flex items-center">
-                      <CalendarDays className="h-4 w-4 mr-2"/> {appt.date} at {appt.time}
-                    </p>
-                    <Button variant="link" size="sm" className="p-0 h-auto mt-1">View Details</Button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-muted-foreground">You have no upcoming appointments or bookings.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-md">
-          <CardHeader>
-            <CardTitle className="text-xl font-headline">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {quickActions.map((action) => (
-              <Button key={action.label} variant="outline" className="w-full justify-start" asChild>
-                <Link href={action.href}>
-                  {action.icon}
-                  {action.label}
-                </Link>
-              </Button>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="shadow-md">
-        <CardHeader>
-            <CardTitle className="text-xl font-headline">Recent Activity</CardTitle>
-            <CardDescription>Track your recent interactions and updates.</CardDescription>
+          <div className="flex items-center">
+            <Info className="h-10 w-10 text-primary mr-4" />
+            <div>
+              <CardTitle className="text-3xl font-headline">Patient Area Deprecated</CardTitle>
+              <CardDescription>
+                This patient dashboard is no longer active as per the new system design.
+                Public users can find hospitals and services directly without logging in.
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-            <ul className="space-y-3 text-sm">
-              <li className="flex items-center"><MessageSquareHeart className="h-4 w-4 mr-2 text-primary"/> Feedback submitted for City General Hospital.</li>
-              <li className="flex items-center"><AlertTriangle className="h-4 w-4 mr-2 text-destructive"/> Complaint #C12045 status updated to 'In Progress'.</li>
-              <li className="flex items-center"><BedDouble className="h-4 w-4 mr-2 text-green-500"/> Booking confirmed at St. Luke's Medical Center.</li>
-            </ul>
+          <p className="mb-4">
+            You can use the main site features to:
+          </p>
+          <ul className="list-disc list-inside space-y-2 mb-6">
+            <li>Search for hospitals and view their details.</li>
+            <li>Check real-time bed availability.</li>
+            <li>Get smart recommendations for hospitals based on your needs.</li>
+            <li>Submit feedback or complaints regarding services.</li>
+          </ul>
+          <Button asChild>
+            <Link href="/search">Find a Hospital Now</Link>
+          </Button>
+           <Button variant="link" asChild className="ml-4">
+            <Link href="/">Go to Homepage</Link>
+          </Button>
         </CardContent>
       </Card>
-
     </div>
   );
 }

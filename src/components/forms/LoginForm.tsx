@@ -14,26 +14,19 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import Link from "next/link";
-import { useRouter } from "next/navigation"; // For redirection
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { auth } from "@/lib/firebase"; // Import Firebase auth
+import { auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import type { UserProfile } from "@/lib/types";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
-  // Role selection at login is kept for now, but ideally role comes from user's profile/claims after login
-  role: z.enum(["patient", "hospital_admin", "platform_admin"], { required_error: "Please select a role." }),
 });
 
 export function LoginForm() {
@@ -53,33 +46,43 @@ export function LoginForm() {
     setIsLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
-      // User is logged in.
-      // NOTE: The role selected here (values.role) is only used for client-side redirection.
-      // Real authorization should be based on custom claims or a fetched user profile.
+      const firebaseUser = userCredential.user;
+
+      // Fetch user profile to determine role
+      const userDocRef = doc(db, "users", firebaseUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (!userDocSnap.exists()) {
+        throw new Error("User profile not found. Please contact support.");
+      }
+
+      const userProfile = userDocSnap.data() as UserProfile;
+
       toast({
         title: "Login Successful",
-        description: `Welcome back! Redirecting to your dashboard...`,
+        description: `Welcome back, ${userProfile.name}! Redirecting...`,
         variant: "default",
       });
 
-      // Redirect based on the role selected in the form.
-      // A more robust solution would fetch the user's actual role from Firestore or claims.
-      if (values.role === "patient") {
-        router.push("/patient/dashboard");
-      } else if (values.role === "hospital_admin") {
+      if (userProfile.role === "hospital_admin") {
         router.push("/hospital/dashboard");
-      } else if (values.role === "platform_admin") {
-        router.push("/platform-admin/announcements"); // Example platform admin route
+      } else if (userProfile.role === "platform_admin") {
+        router.push("/platform-admin/announcements"); // Or a dedicated platform admin dashboard
       } else {
-        router.push("/"); // Fallback
+        // This case should ideally not happen if login is restricted
+        toast({ title: "Access Denied", description: "Your role does not have dashboard access.", variant: "destructive" });
+        await auth.signOut(); // Sign out user if role is not permitted
+        router.push("/"); // Redirect to homepage
       }
 
     } catch (error: any) {
-      let errorMessage = "Invalid credentials or role. Please try again.";
+      let errorMessage = "Login failed. Please check your credentials.";
       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
         errorMessage = "Invalid email or password.";
       } else if (error.code === 'auth/too-many-requests') {
         errorMessage = "Too many login attempts. Please try again later.";
+      } else if (error.message === "User profile not found. Please contact support.") {
+        errorMessage = error.message;
       }
       console.error("Login error:", error);
       toast({
@@ -102,7 +105,7 @@ export function LoginForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input type="email" placeholder="your@email.com" {...field} />
+                <Input type="email" placeholder="hospital.admin@email.com" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -121,36 +124,14 @@ export function LoginForm() {
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="role"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Login as</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your role" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="patient">Patient</SelectItem>
-                  <SelectItem value="hospital_admin">Hospital Admin</SelectItem>
-                  <SelectItem value="platform_admin">Platform Admin</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
         <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Login
+          Login as Hospital Staff
         </Button>
         <div className="text-center text-sm text-muted-foreground">
-          Don't have an account?{" "}
+          Don't have a hospital account?{" "}
           <Button variant="link" asChild className="p-0 h-auto">
-            <Link href="/register">Register here</Link>
+            <Link href="/register">Register Your Hospital</Link>
           </Button>
         </div>
       </form>
