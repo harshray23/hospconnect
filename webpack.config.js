@@ -1,22 +1,3 @@
-
-module.exports = {
-  // ... other configurations (if you have them, otherwise this can be minimal)
-  module: {
-    rules: [
-      {
-        test: /\.js$/,
-        exclude: /node_modules/,
-        use: {
-          loader: 'babel-loader',
-          options: {
-            presets: ['@babel/preset-env'],
-          },
-        },
-      },
-      // ... other rules (if needed)
-    ],
-  },
-  // Ensure you have other necessary Webpack configurations if this file is to be used standalone
-  // For example, entry, output, mode, etc.
-  // If this is just for Next.js, Next.js handles these.
-};
+// This file is intentionally left empty or can be deleted.
+// Next.js uses its own Webpack configuration defined in next.config.ts.
+// A standalone webpack.config.js at the root is not typically used by Next.js builds.

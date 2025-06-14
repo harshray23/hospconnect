@@ -3,6 +3,8 @@ import { LoginForm } from '@/components/forms/LoginForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LogIn } from 'lucide-react';
 
+export const dynamic = 'force-dynamic'; // Ensures the page is rendered dynamically
+
 export default function LoginPage() {
   return (
     <div className="flex justify-center items-center min-h-[calc(100vh-10rem)] py-12">
