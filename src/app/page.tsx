@@ -44,7 +44,7 @@ export default function HomePage() {
           </p>
           <div className="space-x-4">
             <Button size="lg" asChild className="shadow-lg hover:shadow-xl transition-shadow">
-              <Link href="/search?openMap=true">
+              <Link href="/search">
                 <Search className="mr-2 h-5 w-5" /> Find a Hospital
               </Link>
             </Button>
