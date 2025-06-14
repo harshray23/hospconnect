@@ -1,16 +1,4 @@
 
-'use client';
-
-import { useSearchParams } from 'next/navigation';
-
-export default function RegisterForm() {
-  const searchParams = useSearchParams();
-  const ref = searchParams.get('ref');
-
-  return (
-    <form>
-      <p>Referral Code: {ref || 'none'}</p>
-      {/* Your form fields go here */}
-    </form>
-  );
-}
+// This file will be deleted as it's being replaced by RegistrationForm.tsx in the same directory
+// and its simpler content is not the full registration form logic needed.
+// The correct, full-featured form is now at /src/app/(auth)/register/RegistrationForm.tsx

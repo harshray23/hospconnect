@@ -97,7 +97,7 @@ export default function RegistrationForm() {
 
       toast({
         title: "Hospital Registration Successful",
-        description: `${values.hospitalName} is registered. Please login.`,
+        description: `${values.hospitalName} is registered. Please login. Referral code (if any): ${ref || 'none'}`,
         variant: "default",
       });
       router.push('/login');

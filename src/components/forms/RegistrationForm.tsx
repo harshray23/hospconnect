@@ -1,8 +1,6 @@
 // This file is no longer primarily used for the /register route's main form.
-// It has been replaced by /src/app/(auth)/register/RegistrationForm.tsx.
-// Keeping the file for now in case it's referenced elsewhere,
-// but its content is effectively duplicated and enhanced in the new location.
-// Consider removing this file if it's confirmed to be unused.
+// Its content has been moved to /src/app/(auth)/register/RegistrationForm.tsx.
+// Consider removing this file if it's confirmed to be unused elsewhere.
 
 "use client";
 
@@ -233,4 +231,3 @@ export function RegistrationForm() {
     </Form>
   );
 }
-
