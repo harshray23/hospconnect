@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { HospitalCard } from '@/components/HospitalCard';
 import { SmartHospitalRecForm } from '@/components/forms/SmartHospitalRecForm';
 import type { Hospital } from '@/lib/types';
@@ -10,18 +11,16 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Filter, ListFilter, MapPin, Stethoscope, AlertTriangle, Loader2, ServerCrash, Zap } from 'lucide-react';
+import { Filter, ListFilter, MapPinIcon, Stethoscope, AlertTriangle, Loader2, ServerCrash, Zap } from 'lucide-react';
 import type { RecommendHospitalsOutput } from '@/ai/flows/smart-hospital-recommendations';
-// import { db } from '@/lib/firebase'; // Firestore fetch disabled for mock data
-// import { collection, getDocs, query, where, DocumentData, Timestamp, GeoPoint } from 'firebase/firestore'; // Firestore fetch disabled
 import { Skeleton } from '@/components/ui/skeleton';
-// MapDisplay component is removed
+
 
 const ALL_SPECIALTIES_VALUE = "_all_specialties_";
 const ANY_BED_TYPE_VALUE = "_any_bed_type_";
 const ANY_EMERGENCY_VALUE = "_any_emergency_";
 
-// Mock Hospital Data
+
 const mockHospitalsData: Hospital[] = [
   {
     id: "hospital1",
@@ -111,6 +110,7 @@ const mockHospitalsData: Hospital[] = [
 
 
 export default function SearchPage() {
+  const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [specialtyFilter, setSpecialtyFilter] = useState(ALL_SPECIALTIES_VALUE);
   const [bedTypeFilter, setBedTypeFilter] = useState(ANY_BED_TYPE_VALUE);
@@ -125,15 +125,25 @@ export default function SearchPage() {
   const [recommendedHospitals, setRecommendedHospitals] = useState<string[] | null>(null);
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [allSpecialties, setAllSpecialties] = useState<string[]>([]);
+  
+  // No map state needed anymore
 
   useEffect(() => {
     setIsLoadingHospitals(true);
+    setErrorLoadingHospitals(null);
+    // Simulate fetching data
     setTimeout(() => {
+      try {
         setAllHospitals(mockHospitalsData);
         setFilteredHospitals(mockHospitalsData);
         const specialties = Array.from(new Set(mockHospitalsData.flatMap(h => h.specialties || []))).sort();
         setAllSpecialties(specialties);
+      } catch (e) {
+        setErrorLoadingHospitals("Failed to load mock hospital data.");
+        console.error(e);
+      } finally {
         setIsLoadingHospitals(false);
+      }
     }, 500); 
   }, []);
 
@@ -283,6 +293,8 @@ export default function SearchPage() {
       </section>
 
       <Separator />
+      
+      {/* Removed Map Display Section */}
 
       <section>
         <h2 className="text-2xl font-bold font-headline mb-6 flex items-center">
@@ -324,7 +336,7 @@ export default function SearchPage() {
         ) : (
           <Card className="text-center py-12 shadow-md">
             <CardContent>
-              <MapPin className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <MapPinIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <p className="text-xl text-muted-foreground">No hospitals match your current filters.</p>
               <p className="text-sm text-muted-foreground mt-2">Try adjusting your search criteria or using the Smart Recommendation tool.</p>
             </CardContent>
