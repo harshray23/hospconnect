@@ -1,9 +1,12 @@
+
 "use client";
 
 import React, { Suspense } from 'react';
 import { RegistrationForm } from '@/components/forms/RegistrationForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserPlus, Loader2, HospitalIcon } from 'lucide-react'; // UserPlus was there before, kept for consistency, HospitalIcon is used
+import { UserPlus, Loader2, HospitalIcon } from 'lucide-react';
+
+export const dynamic = 'force-dynamic'; // Ensures the page is rendered dynamically
 
 export default function RegisterPage() {
   return (
@@ -23,9 +26,6 @@ export default function RegisterPage() {
             <CardDescription>Join HospConnect to list your services and manage availability.</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* The RegistrationForm itself doesn't need another Suspense if the whole page is under one,
-                unless RegistrationForm has its own internal Suspense needs for other async operations.
-                The previous Suspense around RegistrationForm is removed as the parent now handles it. */}
             <RegistrationForm />
           </CardContent>
         </Card>

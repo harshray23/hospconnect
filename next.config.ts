@@ -24,17 +24,14 @@ const nextConfig: NextConfig = {
     config.resolve.alias['@opentelemetry/exporter-jaeger'] = false;
 
     if (!isServer) {
-      // For client-side bundle, use pre-compiled handlebars and mock 'fs'
+      // For client-side bundle, use pre-compiled handlebars and mock 'fs' and 'path'
       config.resolve.alias['handlebars'] = 'handlebars/dist/handlebars.min.js';
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
-        path: false, // path is another common Node.js module
+        path: false,
       };
     }
-
-    // If you were using firebase-admin server-side and it caused issues:
-    // config.externals = [...config.externals, 'firebase-admin'];
 
     return config;
   },
