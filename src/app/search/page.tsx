@@ -13,10 +13,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Filter, ListFilter, MapPin, Stethoscope, AlertTriangle, Loader2, ServerCrash, Zap, Eye, EyeOff } from 'lucide-react';
 import type { RecommendHospitalsOutput } from '@/ai/flows/smart-hospital-recommendations';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, query, where, DocumentData, Timestamp, GeoPoint } from 'firebase/firestore';
+// import { db } from '@/lib/firebase'; // Firestore fetch disabled for mock data
+// import { collection, getDocs, query, where, DocumentData, Timestamp, GeoPoint } from 'firebase/firestore'; // Firestore fetch disabled
 import { Skeleton } from '@/components/ui/skeleton';
-import { MapDisplay } from '@/components/MapDisplay'; 
+import { MapDisplay } from '@/components/MapDisplay';
 import { useToast } from '@/hooks/use-toast';
 
 const ALL_SPECIALTIES_VALUE = "_all_specialties_";
@@ -24,17 +24,106 @@ const ANY_BED_TYPE_VALUE = "_any_bed_type_";
 const ANY_EMERGENCY_VALUE = "_any_emergency_";
 const DEFAULT_LOCATION = { lat: 28.6139, lng: 77.2090 }; // Default to Delhi, India if geolocation fails
 
+// Mock Hospital Data
+const mockHospitalsData: Hospital[] = [
+  {
+    id: "hospital1",
+    name: "City General Hospital",
+    location: {
+      address: "123 Main St, Anytown, USA",
+      coordinates: { latitude: 28.6139, longitude: 77.2090 }, // Delhi (example)
+    },
+    contact: "555-1234",
+    specialties: ["cardiology", "general medicine", "pediatrics"],
+    beds: {
+      icu: { total: 20, available: 5 },
+      general: { total: 100, available: 30 },
+      oxygen: { total: 50, available: 15 },
+      ventilator: { total: 10, available: 2 },
+    },
+    emergencyAvailable: true,
+    lastUpdated: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), // 1 hour ago
+    imageUrl: "https://placehold.co/600x400.png?text=City+General",
+    rating: 4.5,
+    dataAiHint: "hospital building",
+  },
+  {
+    id: "hospital2",
+    name: "Sunshine Medical Center",
+    location: {
+      address: "456 Oak Ave, Anytown, USA",
+      coordinates: { latitude: 28.6200, longitude: 77.2195 }, // Near Delhi (example)
+    },
+    contact: "555-5678",
+    specialties: ["oncology", "neurology", "orthopedics"],
+    beds: {
+      icu: { total: 15, available: 3 },
+      general: { total: 80, available: 10 },
+      oxygen: { total: 40, available: 8 },
+      ventilator: { total: 5, available: 1 },
+    },
+    emergencyAvailable: true,
+    lastUpdated: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), // 3 hours ago
+    imageUrl: "https://placehold.co/600x400.png?text=Sunshine+Medical",
+    rating: 4.2,
+    dataAiHint: "modern clinic",
+  },
+  {
+    id: "hospital3",
+    name: "Hope Children's Hospital",
+    location: {
+      address: "789 Pine Ln, Anytown, USA",
+      coordinates: { latitude: 28.5900, longitude: 77.1900 }, // South Delhi (example)
+    },
+    contact: "555-9012",
+    specialties: ["pediatrics", "neonatology"],
+    beds: {
+      icu: { total: 25, available: 12 }, // Pediatric ICU
+      general: { total: 60, available: 25 },
+      oxygen: { total: 30, available: 10 },
+      ventilator: { total: 8, available: 4 },
+    },
+    emergencyAvailable: true,
+    lastUpdated: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 mins ago
+    imageUrl: "https://placehold.co/600x400.png?text=Childrens+Hospital",
+    rating: 4.8,
+    dataAiHint: "children hospital",
+  },
+  {
+    id: "hospital4",
+    name: "Community Health Clinic",
+    location: {
+      address: "101 Blossom Rd, Anytown, USA",
+      coordinates: { latitude: 28.6350, longitude: 77.2000 }, // West Delhi (example)
+    },
+    contact: "555-3456",
+    specialties: ["general medicine", "family practice"],
+    beds: {
+      icu: { total: 0, available: 0 },
+      general: { total: 20, available: 18 },
+      oxygen: { total: 5, available: 5 },
+      ventilator: { total: 0, available: 0 },
+    },
+    emergencyAvailable: false,
+    lastUpdated: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), // 5 hours ago
+    imageUrl: "https://placehold.co/600x400.png?text=Community+Clinic",
+    rating: 3.9,
+    dataAiHint: "local clinic",
+  },
+];
+
+
 export default function SearchPage() {
   const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [specialtyFilter, setSpecialtyFilter] = useState(ALL_SPECIALTIES_VALUE);
   const [bedTypeFilter, setBedTypeFilter] = useState(ANY_BED_TYPE_VALUE);
-  const [locationFilter, setLocationFilter] = useState(''); 
-  const [emergencyFilter, setEmergencyFilter] = useState(ANY_EMERGENCY_VALUE); 
-  
+  const [locationFilter, setLocationFilter] = useState('');
+  const [emergencyFilter, setEmergencyFilter] = useState(ANY_EMERGENCY_VALUE);
+
   const [allHospitals, setAllHospitals] = useState<Hospital[]>([]);
   const [filteredHospitals, setFilteredHospitals] = useState<Hospital[]>([]);
-  const [isLoadingHospitals, setIsLoadingHospitals] = useState(true);
+  const [isLoadingHospitals, setIsLoadingHospitals] = useState(true); // Keep true initially
   const [errorLoadingHospitals, setErrorLoadingHospitals] = useState<string | null>(null);
 
   const [recommendedHospitals, setRecommendedHospitals] = useState<string[] | null>(null);
@@ -47,6 +136,19 @@ export default function SearchPage() {
   const { toast } = useToast();
 
   useEffect(() => {
+    // Using Mock Data
+    setIsLoadingHospitals(true);
+    // Simulate a short delay for loading effect with mock data
+    setTimeout(() => {
+        setAllHospitals(mockHospitalsData);
+        setFilteredHospitals(mockHospitalsData);
+        const specialties = Array.from(new Set(mockHospitalsData.flatMap(h => h.specialties || []))).sort();
+        setAllSpecialties(specialties);
+        setIsLoadingHospitals(false);
+    }, 500); // 0.5 second delay
+
+    // Original Firestore fetching logic (commented out for mock data usage)
+    /*
     const fetchHospitals = async () => {
       setIsLoadingHospitals(true);
       setErrorLoadingHospitals(null);
@@ -54,10 +156,10 @@ export default function SearchPage() {
         const hospitalsCollectionRef = collection(db, 'hospitals');
         const hospitalSnapshot = await getDocs(hospitalsCollectionRef);
         const fetchedHospitals: Hospital[] = hospitalSnapshot.docs.map(doc => {
-          const data = doc.data() as DocumentData; 
+          const data = doc.data() as DocumentData;
           const locationData = data.location || { address: 'N/A' };
-          return { 
-            id: doc.id, 
+          return {
+            id: doc.id,
             name: data.name || "Unknown Hospital",
             location: {
               address: locationData.address,
@@ -87,12 +189,13 @@ export default function SearchPage() {
       }
     };
     fetchHospitals();
+    */
   }, []);
 
   const openMapAndFetchLocation = useCallback(() => {
     if (!userLocation && !isGettingLocation) {
       setIsGettingLocation(true);
-      setShowMap(true); 
+      setShowMap(true);
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setUserLocation({
@@ -113,7 +216,7 @@ export default function SearchPage() {
         },
         { timeout: 10000 }
       );
-    } else if (userLocation || isGettingLocation) { // If location already exists or is being fetched, just ensure map is shown
+    } else if (userLocation || isGettingLocation) {
         setShowMap(true);
     }
   }, [userLocation, isGettingLocation, toast]);
@@ -126,7 +229,7 @@ export default function SearchPage() {
 
 
   useEffect(() => {
-    let hospitals = [...allHospitals]; 
+    let hospitals = [...allHospitals];
 
     if (searchTerm) {
       hospitals = hospitals.filter(h => h.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -136,10 +239,13 @@ export default function SearchPage() {
     }
     if (bedTypeFilter && bedTypeFilter !== ANY_BED_TYPE_VALUE) {
       const bedKey = bedTypeFilter as keyof Hospital['beds'];
-      hospitals = hospitals.filter(h => h.beds?.[bedKey]?.available > 0);
+      hospitals = hospitals.filter(h => {
+        const bedCategory = h.beds?.[bedKey];
+        return bedCategory && bedCategory.available > 0;
+      });
     }
     if (locationFilter) {
-      hospitals = hospitals.filter(h => 
+      hospitals = hospitals.filter(h =>
         h.location?.address?.toLowerCase().includes(locationFilter.toLowerCase())
       );
     }
@@ -154,17 +260,18 @@ export default function SearchPage() {
     if (data) {
       setRecommendedHospitals(data.hospitals);
     } else {
-      setRecommendedHospitals([]); 
+      setRecommendedHospitals([]);
     }
     setIsLoadingRecommendations(false);
   };
-  
+
   const handleResetFilters = () => {
     setSearchTerm('');
     setSpecialtyFilter(ALL_SPECIALTIES_VALUE);
     setBedTypeFilter(ANY_BED_TYPE_VALUE);
     setLocationFilter('');
     setEmergencyFilter(ANY_EMERGENCY_VALUE);
+    setRecommendedHospitals(null); // Clear AI recommendations
   };
 
   const toggleMapVisibility = () => {
@@ -178,17 +285,21 @@ export default function SearchPage() {
   const mapCenter = useMemo(() => {
     if (userLocation) return userLocation;
     if (filteredHospitals.length > 0 && filteredHospitals[0].location?.coordinates) {
-      return { 
-        lat: filteredHospitals[0].location.coordinates.latitude, 
-        lng: filteredHospitals[0].location.coordinates.longitude 
-      };
+      const firstCoord = filteredHospitals[0].location.coordinates;
+      // Ensure coordinates is not GeoPoint from firebase/firestore
+      if ('latitude' in firstCoord && 'longitude' in firstCoord) {
+        return {
+          lat: firstCoord.latitude,
+          lng: firstCoord.longitude
+        };
+      }
     }
     return DEFAULT_LOCATION;
   }, [userLocation, filteredHospitals]);
 
-  
-  const hospitalsForMap = useMemo(() => 
-    filteredHospitals.filter(h => h.location?.coordinates), 
+
+  const hospitalsForMap = useMemo(() =>
+    filteredHospitals.filter(h => h.location?.coordinates && 'latitude' in h.location.coordinates && 'longitude' in h.location.coordinates),
   [filteredHospitals]);
 
 
@@ -249,7 +360,7 @@ export default function SearchPage() {
          </Button>
         </div>
          <Button onClick={toggleMapVisibility} variant="default" className="w-full md:w-auto" disabled={isGettingLocation}>
-            {isGettingLocation && !userLocation ? ( // Show loader only if actively getting location AND no location yet
+            {isGettingLocation && !userLocation ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : showMap ? (
                 <EyeOff className="mr-2 h-4 w-4" />
@@ -290,9 +401,9 @@ export default function SearchPage() {
             <p className="text-muted-foreground mb-4">
               Need help? Describe your medical requirements and current location, and our AI will suggest suitable nearby hospitals.
             </p>
-            <SmartHospitalRecForm 
-              onRecommendationsFetched={handleRecommendationsFetched} 
-              setIsLoading={setIsLoadingRecommendations} 
+            <SmartHospitalRecForm
+              onRecommendationsFetched={handleRecommendationsFetched}
+              setIsLoading={setIsLoadingRecommendations}
             />
             {isLoadingRecommendations && (
               <div className="mt-4 flex items-center text-primary">
@@ -316,12 +427,12 @@ export default function SearchPage() {
           </CardContent>
         </Card>
       </section>
-      
+
       <Separator />
 
       <section>
         <h2 className="text-2xl font-bold font-headline mb-6 flex items-center">
-          <ListFilter className="mr-2 h-6 w-6 text-primary" /> 
+          <ListFilter className="mr-2 h-6 w-6 text-primary" />
           Search Results ({isLoadingHospitals || errorLoadingHospitals ? "Loading..." : filteredHospitals.length})
         </h2>
         {isLoadingHospitals ? (
@@ -369,3 +480,4 @@ export default function SearchPage() {
     </div>
   );
 }
+
