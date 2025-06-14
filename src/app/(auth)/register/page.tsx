@@ -1,9 +1,10 @@
 
 'use client';
 
+import React, { Suspense } from 'react'; // Added React and Suspense
 import { RegistrationForm } from '@/components/forms/RegistrationForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Loader2 } from 'lucide-react'; // Added Loader2 for fallback
 
 export default function RegisterPage() {
   return (
@@ -17,9 +18,17 @@ export default function RegisterPage() {
           <CardDescription>Join HospConnect to access healthcare services or manage your hospital.</CardDescription>
         </CardHeader>
         <CardContent>
-          <RegistrationForm />
+          <Suspense fallback={
+            <div className="flex flex-col items-center justify-center space-y-2 py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-muted-foreground">Loading registration form...</p>
+            </div>
+          }>
+            <RegistrationForm />
+          </Suspense>
         </CardContent>
       </Card>
     </div>
   );
 }
+
