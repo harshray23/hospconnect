@@ -18,9 +18,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  webpack: (config, { isServer, webpack }) => { // Added webpack to params
+  webpack: (config, { isServer, webpack }) => { // Ensure 'webpack' is destructured here
     // Ignore optional Jaeger exporter for OpenTelemetry if not found
-    // This helps prevent "Module not found" errors during build for optional dependencies
     config.plugins.push(
       new webpack.IgnorePlugin({
         resourceRegExp: /@opentelemetry\/exporter-jaeger/,
