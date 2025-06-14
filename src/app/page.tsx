@@ -44,7 +44,7 @@ export default function HomePage() {
           </p>
           <div className="space-x-4">
             <Button size="lg" asChild className="shadow-lg hover:shadow-xl transition-shadow">
-              <Link href="/search">
+              <Link href="/search?openMap=true">
                 <Search className="mr-2 h-5 w-5" /> Find a Hospital
               </Link>
             </Button>
@@ -120,7 +120,7 @@ export default function HomePage() {
           <div className="aspect-[16/9] w-full max-w-4xl mx-auto rounded-lg overflow-hidden shadow-2xl">
             <Image
               src="/img_hospital.jpg"
-              alt="Hospital image representing HospConnect services"
+              alt="Modern hospital building with clear skies, representing HospConnect services"
               width={1200}
               height={675}
               className="object-cover w-full h-full"

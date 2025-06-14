@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { HospitalCard } from '@/components/HospitalCard';
 import { SmartHospitalRecForm } from '@/components/forms/SmartHospitalRecForm';
 import type { Hospital } from '@/lib/types';
@@ -24,6 +25,7 @@ const ANY_EMERGENCY_VALUE = "_any_emergency_";
 const DEFAULT_LOCATION = { lat: 28.6139, lng: 77.2090 }; // Default to Delhi, India if geolocation fails
 
 export default function SearchPage() {
+  const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [specialtyFilter, setSpecialtyFilter] = useState(ALL_SPECIALTIES_VALUE);
   const [bedTypeFilter, setBedTypeFilter] = useState(ANY_BED_TYPE_VALUE);
@@ -87,6 +89,42 @@ export default function SearchPage() {
     fetchHospitals();
   }, []);
 
+  const openMapAndFetchLocation = useCallback(() => {
+    if (!userLocation && !isGettingLocation) {
+      setIsGettingLocation(true);
+      setShowMap(true); 
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+          setIsGettingLocation(false);
+        },
+        (error) => {
+          console.warn("Error getting user location:", error.message);
+          toast({
+            title: "Location Access Denied",
+            description: "Could not access your location. Map will center on a default area.",
+            variant: "default"
+          });
+          setUserLocation(DEFAULT_LOCATION);
+          setIsGettingLocation(false);
+        },
+        { timeout: 10000 }
+      );
+    } else if (userLocation || isGettingLocation) { // If location already exists or is being fetched, just ensure map is shown
+        setShowMap(true);
+    }
+  }, [userLocation, isGettingLocation, toast]);
+
+  useEffect(() => {
+    if (searchParams.get('openMap') === 'true' && !showMap) {
+        openMapAndFetchLocation();
+    }
+  }, [searchParams, openMapAndFetchLocation, showMap]);
+
+
   useEffect(() => {
     let hospitals = [...allHospitals]; 
 
@@ -97,10 +135,8 @@ export default function SearchPage() {
       hospitals = hospitals.filter(h => h.specialties?.includes(specialtyFilter));
     }
     if (bedTypeFilter && bedTypeFilter !== ANY_BED_TYPE_VALUE) {
-      hospitals = hospitals.filter(h => {
-        const bedKey = bedTypeFilter as keyof Hospital['beds'];
-        return h.beds?.[bedKey]?.available > 0;
-      });
+      const bedKey = bedTypeFilter as keyof Hospital['beds'];
+      hospitals = hospitals.filter(h => h.beds?.[bedKey]?.available > 0);
     }
     if (locationFilter) {
       hospitals = hospitals.filter(h => 
@@ -132,32 +168,10 @@ export default function SearchPage() {
   };
 
   const toggleMapVisibility = () => {
-    if (!showMap && !userLocation) { 
-      setIsGettingLocation(true);
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-          setShowMap(true);
-          setIsGettingLocation(false);
-        },
-        (error) => {
-          console.warn("Error getting user location:", error.message);
-          toast({
-            title: "Location Access Denied",
-            description: "Could not access your location. Map will center on a default area.",
-            variant: "default"
-          });
-          setUserLocation(DEFAULT_LOCATION); 
-          setShowMap(true);
-          setIsGettingLocation(false);
-        },
-        { timeout: 10000 } 
-      );
+    if (!showMap) {
+        openMapAndFetchLocation();
     } else {
-      setShowMap(!showMap);
+        setShowMap(false);
     }
   };
 
@@ -235,14 +249,14 @@ export default function SearchPage() {
          </Button>
         </div>
          <Button onClick={toggleMapVisibility} variant="default" className="w-full md:w-auto" disabled={isGettingLocation}>
-            {isGettingLocation ? (
+            {isGettingLocation && !userLocation ? ( // Show loader only if actively getting location AND no location yet
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : showMap ? (
                 <EyeOff className="mr-2 h-4 w-4" />
             ) : (
                 <Eye className="mr-2 h-4 w-4" />
             )}
-            {isGettingLocation ? "Getting Location..." : showMap ? "Hide Map" : "Show on Map"}
+            {isGettingLocation && !userLocation ? "Getting Location..." : showMap ? "Hide Map" : "Show on Map"}
         </Button>
       </section>
 
