@@ -1,11 +1,7 @@
-// This file is no longer primarily used for the /register route's main form.
-// It has been replaced by /src/app/(auth)/register/RegistrationForm.tsx.
-// Keeping the file for now in case it's referenced elsewhere,
-// but its content is effectively duplicated and enhanced in the new location.
-// Consider removing this file if it's confirmed to be unused.
 
-"use client";
+'use client';
 
+import { useSearchParams } from 'next/navigation';
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -29,6 +25,7 @@ import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import type { UserProfile } from "@/lib/types";
 
+
 // Schema for hospital admin registration
 const registrationSchema = z.object({
   hospitalName: z.string().min(3, { message: "Hospital name must be at least 3 characters." }),
@@ -46,7 +43,10 @@ const registrationSchema = z.object({
   path: ["confirmPassword"],
 });
 
-export function RegistrationForm() {
+export default function RegistrationForm() {
+  const searchParams = useSearchParams();
+  const ref = searchParams.get('ref');
+
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -71,10 +71,8 @@ export function RegistrationForm() {
     if (values.profilePicture && values.profilePicture.length > 0) {
       const file = values.profilePicture[0];
       // TODO: Implement Firebase Storage upload here.
-      toast({
-        title: "Profile Picture Selected (Placeholder)",
-        description: `File: ${file.name}. Actual upload to Firebase Storage is needed.`,
-      });
+      // For now, just log it or use a placeholder
+      console.log("Profile picture selected (actual upload needed):", file.name);
       // profilePictureUrl = "https://placehold.co/100x100.png"; // Example placeholder
     }
 
@@ -82,14 +80,11 @@ export function RegistrationForm() {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // Create user profile document in Firestore with role 'hospital_admin'
-      // The hospitalId here is the hospitalName. In a real scenario, you might create a separate hospitals collection
-      // and link this user to an ID from that collection.
       const userProfileData: Omit<UserProfile, 'uid' | 'createdAt'> = {
-        name: values.contactPersonName, // Using contact person name as the user's name
+        name: values.contactPersonName,
         email: user.email,
         role: "hospital_admin",
-        hospitalId: values.hospitalName, // Using hospital name as a temporary ID.
+        hospitalId: values.hospitalName, 
         profilePictureUrl: profilePictureUrl,
       };
       
@@ -99,7 +94,6 @@ export function RegistrationForm() {
       });
 
       // TODO: Potentially create/update a document in a 'hospitals' collection here too
-      // using values.hospitalName as its ID or name.
 
       toast({
         title: "Hospital Registration Successful",
@@ -129,6 +123,8 @@ export function RegistrationForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        {ref && <p className="text-sm text-muted-foreground p-2 bg-secondary/50 rounded-md">Referral Code Applied: {ref}</p>}
+        
         <FormField
           control={form.control}
           name="hospitalName"
@@ -233,4 +229,3 @@ export function RegistrationForm() {
     </Form>
   );
 }
-
