@@ -15,7 +15,7 @@ import type { RecommendHospitalsOutput } from '@/ai/flows/smart-hospital-recomme
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, where, DocumentData, Timestamp, GeoPoint } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MapDisplay } from '@/components/MapDisplay'; // Import the new map component
+import { MapDisplay } from '@/components/MapDisplay'; 
 import { useToast } from '@/hooks/use-toast';
 
 const ALL_SPECIALTIES_VALUE = "_all_specialties_";
@@ -132,7 +132,7 @@ export default function SearchPage() {
   };
 
   const toggleMapVisibility = () => {
-    if (!showMap && !userLocation) { // If opening map and no location yet
+    if (!showMap && !userLocation) { 
       setIsGettingLocation(true);
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -150,11 +150,11 @@ export default function SearchPage() {
             description: "Could not access your location. Map will center on a default area.",
             variant: "default"
           });
-          setUserLocation(DEFAULT_LOCATION); // Use default if denied or error
+          setUserLocation(DEFAULT_LOCATION); 
           setShowMap(true);
           setIsGettingLocation(false);
         },
-        { timeout: 10000 } // 10 seconds timeout
+        { timeout: 10000 } 
       );
     } else {
       setShowMap(!showMap);
@@ -172,7 +172,7 @@ export default function SearchPage() {
     return DEFAULT_LOCATION;
   }, [userLocation, filteredHospitals]);
 
-  // Filter out hospitals without coordinates for map display
+  
   const hospitalsForMap = useMemo(() => 
     filteredHospitals.filter(h => h.location?.coordinates), 
   [filteredHospitals]);
