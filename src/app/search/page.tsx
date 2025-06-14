@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { HospitalCard } from '@/components/HospitalCard';
 import { SmartHospitalRecForm } from '@/components/forms/SmartHospitalRecForm';
 import type { Hospital } from '@/lib/types';
@@ -10,21 +10,24 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Filter, ListFilter, MapPin, Stethoscope, AlertTriangle, Loader2, ServerCrash, Zap } from 'lucide-react';
+import { Filter, ListFilter, MapPin, Stethoscope, AlertTriangle, Loader2, ServerCrash, Zap, Eye, EyeOff } from 'lucide-react';
 import type { RecommendHospitalsOutput } from '@/ai/flows/smart-hospital-recommendations';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, where, DocumentData, Timestamp, GeoPoint } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MapDisplay } from '@/components/MapDisplay'; // Import the new map component
+import { useToast } from '@/hooks/use-toast';
 
 const ALL_SPECIALTIES_VALUE = "_all_specialties_";
 const ANY_BED_TYPE_VALUE = "_any_bed_type_";
 const ANY_EMERGENCY_VALUE = "_any_emergency_";
+const DEFAULT_LOCATION = { lat: 28.6139, lng: 77.2090 }; // Default to Delhi, India if geolocation fails
 
 export default function SearchPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [specialtyFilter, setSpecialtyFilter] = useState(ALL_SPECIALTIES_VALUE);
   const [bedTypeFilter, setBedTypeFilter] = useState(ANY_BED_TYPE_VALUE);
-  const [locationFilter, setLocationFilter] = useState(''); // Filters by address string
+  const [locationFilter, setLocationFilter] = useState(''); 
   const [emergencyFilter, setEmergencyFilter] = useState(ANY_EMERGENCY_VALUE); 
   
   const [allHospitals, setAllHospitals] = useState<Hospital[]>([]);
@@ -36,6 +39,11 @@ export default function SearchPage() {
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [allSpecialties, setAllSpecialties] = useState<string[]>([]);
 
+  const [showMap, setShowMap] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const { toast } = useToast();
+
   useEffect(() => {
     const fetchHospitals = async () => {
       setIsLoadingHospitals(true);
@@ -44,8 +52,7 @@ export default function SearchPage() {
         const hospitalsCollectionRef = collection(db, 'hospitals');
         const hospitalSnapshot = await getDocs(hospitalsCollectionRef);
         const fetchedHospitals: Hospital[] = hospitalSnapshot.docs.map(doc => {
-          const data = doc.data() as DocumentData; // Use DocumentData for safety
-          // Ensure location and beds are at least empty objects if undefined from Firestore
+          const data = doc.data() as DocumentData; 
           const locationData = data.location || { address: 'N/A' };
           return { 
             id: doc.id, 
@@ -92,12 +99,10 @@ export default function SearchPage() {
     if (bedTypeFilter && bedTypeFilter !== ANY_BED_TYPE_VALUE) {
       hospitals = hospitals.filter(h => {
         const bedKey = bedTypeFilter as keyof Hospital['beds'];
-        // Ensure h.beds and h.beds[bedKey] exist before accessing 'available'
         return h.beds?.[bedKey]?.available > 0;
       });
     }
     if (locationFilter) {
-      // Filtering by address string
       hospitals = hospitals.filter(h => 
         h.location?.address?.toLowerCase().includes(locationFilter.toLowerCase())
       );
@@ -125,6 +130,53 @@ export default function SearchPage() {
     setLocationFilter('');
     setEmergencyFilter(ANY_EMERGENCY_VALUE);
   };
+
+  const toggleMapVisibility = () => {
+    if (!showMap && !userLocation) { // If opening map and no location yet
+      setIsGettingLocation(true);
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+          setShowMap(true);
+          setIsGettingLocation(false);
+        },
+        (error) => {
+          console.warn("Error getting user location:", error.message);
+          toast({
+            title: "Location Access Denied",
+            description: "Could not access your location. Map will center on a default area.",
+            variant: "default"
+          });
+          setUserLocation(DEFAULT_LOCATION); // Use default if denied or error
+          setShowMap(true);
+          setIsGettingLocation(false);
+        },
+        { timeout: 10000 } // 10 seconds timeout
+      );
+    } else {
+      setShowMap(!showMap);
+    }
+  };
+
+  const mapCenter = useMemo(() => {
+    if (userLocation) return userLocation;
+    if (filteredHospitals.length > 0 && filteredHospitals[0].location?.coordinates) {
+      return { 
+        lat: filteredHospitals[0].location.coordinates.latitude, 
+        lng: filteredHospitals[0].location.coordinates.longitude 
+      };
+    }
+    return DEFAULT_LOCATION;
+  }, [userLocation, filteredHospitals]);
+
+  // Filter out hospitals without coordinates for map display
+  const hospitalsForMap = useMemo(() => 
+    filteredHospitals.filter(h => h.location?.coordinates), 
+  [filteredHospitals]);
+
 
   return (
     <div className="space-y-8">
@@ -182,7 +234,34 @@ export default function SearchPage() {
             <Filter className="mr-2 h-4 w-4" /> Reset Filters
          </Button>
         </div>
+         <Button onClick={toggleMapVisibility} variant="default" className="w-full md:w-auto" disabled={isGettingLocation}>
+            {isGettingLocation ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : showMap ? (
+                <EyeOff className="mr-2 h-4 w-4" />
+            ) : (
+                <Eye className="mr-2 h-4 w-4" />
+            )}
+            {isGettingLocation ? "Getting Location..." : showMap ? "Hide Map" : "Show on Map"}
+        </Button>
       </section>
+
+      {showMap && (
+        <section className="my-6">
+           {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
+            <MapDisplay hospitals={hospitalsForMap} center={mapCenter} />
+          ) : (
+            <Card className="text-center py-12 shadow-md bg-amber-50 border-amber-400">
+                <CardContent>
+                <AlertTriangle className="h-16 w-16 text-amber-600 mx-auto mb-4" />
+                <p className="text-xl text-amber-700 font-semibold">Map Feature Not Configured</p>
+                <p className="text-sm text-amber-600 mt-2">The Google Maps API key is missing. Please configure it to use this feature.</p>
+                </CardContent>
+            </Card>
+          )}
+        </section>
+      )}
+
 
       <Separator />
 
