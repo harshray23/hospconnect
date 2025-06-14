@@ -4,7 +4,7 @@
 import React, { Suspense } from 'react';
 import { RegistrationForm } from '@/components/forms/RegistrationForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserPlus, Loader2, HospitalIcon } from 'lucide-react';
+import { Loader2, HospitalIcon } from 'lucide-react'; // Removed unused UserPlus
 
 export const dynamic = 'force-dynamic'; // Ensures the page is rendered dynamically
 
