@@ -4,8 +4,10 @@ import { RegistrationForm } from '@/components/forms/RegistrationForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { UserPlus, Loader2, HospitalIcon } from 'lucide-react';
 
-// By removing 'use client' and 'export const dynamic', this page becomes a Server Component by default.
-// It then correctly uses Suspense to handle the client-side RegistrationForm.
+// Ensures the page is rendered dynamically at request time,
+// which is often necessary when client-side hooks like useSearchParams
+// are involved or when issues arise during static pre-rendering.
+export const dynamic = 'force-dynamic';
 
 export default function RegisterPage() {
   return (
