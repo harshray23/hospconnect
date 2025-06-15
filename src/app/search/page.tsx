@@ -1,18 +1,18 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { HospitalCard } from '@/components/HospitalCard';
-import { SmartHospitalRecForm } from '@/components/forms/SmartHospitalRecForm';
+// Removed SmartHospitalRecForm import
 import type { Hospital } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Filter, ListFilter, MapPinIcon, Stethoscope, AlertTriangle, Loader2, ServerCrash, Zap } from 'lucide-react';
-import type { RecommendHospitalsOutput } from '@/ai/flows/smart-hospital-recommendations';
+import { Filter, ListFilter, MapPinIcon, Stethoscope, Loader2, ServerCrash, Zap } from 'lucide-react'; // Removed AlertTriangle
+// Removed RecommendHospitalsOutput type import
 import { Skeleton } from '@/components/ui/skeleton';
 
 
@@ -122,11 +122,9 @@ export default function SearchPage() {
   const [isLoadingHospitals, setIsLoadingHospitals] = useState(true); 
   const [errorLoadingHospitals, setErrorLoadingHospitals] = useState<string | null>(null);
 
-  const [recommendedHospitals, setRecommendedHospitals] = useState<string[] | null>(null);
-  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
+  // Removed recommendedHospitals and isLoadingRecommendations state
   const [allSpecialties, setAllSpecialties] = useState<string[]>([]);
   
-  // No map state needed anymore
 
   useEffect(() => {
     setIsLoadingHospitals(true);
@@ -176,14 +174,7 @@ export default function SearchPage() {
     setFilteredHospitals(hospitals);
   }, [searchTerm, specialtyFilter, bedTypeFilter, locationFilter, emergencyFilter, allHospitals]);
 
-  const handleRecommendationsFetched = (data: RecommendHospitalsOutput | null) => {
-    if (data) {
-      setRecommendedHospitals(data.hospitals);
-    } else {
-      setRecommendedHospitals([]);
-    }
-    setIsLoadingRecommendations(false);
-  };
+  // Removed handleRecommendationsFetched function
 
   const handleResetFilters = () => {
     setSearchTerm('');
@@ -191,7 +182,7 @@ export default function SearchPage() {
     setBedTypeFilter(ANY_BED_TYPE_VALUE);
     setLocationFilter('');
     setEmergencyFilter(ANY_EMERGENCY_VALUE);
-    setRecommendedHospitals(null); 
+    // Removed setRecommendedHospitals(null); 
   };
 
   return (
@@ -252,50 +243,10 @@ export default function SearchPage() {
         </div>
       </section>
 
-      <Separator />
-
-      <section>
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-2xl font-headline text-primary flex items-center">
-              <AlertTriangle className="mr-2 h-6 w-6 text-accent" /> Smart Hospital Recommendations
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground mb-4">
-              Need help? Describe your medical requirements and current location, and our AI will suggest suitable nearby hospitals.
-            </p>
-            <SmartHospitalRecForm
-              onRecommendationsFetched={handleRecommendationsFetched}
-              setIsLoading={setIsLoadingRecommendations}
-            />
-            {isLoadingRecommendations && (
-              <div className="mt-4 flex items-center text-primary">
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                <span>Finding best hospitals for you...</span>
-              </div>
-            )}
-            {recommendedHospitals && recommendedHospitals.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-xl font-semibold mb-2">AI Recommended Hospitals:</h3>
-                <ul className="list-disc list-inside bg-green-50 border border-green-200 p-4 rounded-md text-green-700 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700">
-                  {recommendedHospitals.map((hospitalName, index) => (
-                    <li key={index}>{hospitalName}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {recommendedHospitals && recommendedHospitals.length === 0 && !isLoadingRecommendations && (
-               <p className="mt-4 text-destructive">No specific AI recommendations found. Please check general listings or broaden your criteria.</p>
-            )}
-          </CardContent>
-        </Card>
-      </section>
-
-      <Separator />
+      {/* Smart Hospital Recommendations section removed */}
+      <Separator /> 
+      {/* Removed one Separator, kept one between filters and results */}
       
-      {/* Removed Map Display Section */}
-
       <section>
         <h2 className="text-2xl font-bold font-headline mb-6 flex items-center">
           <ListFilter className="mr-2 h-6 w-6 text-primary" />
@@ -346,3 +297,4 @@ export default function SearchPage() {
     </div>
   );
 }
+
