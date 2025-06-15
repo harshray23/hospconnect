@@ -5,21 +5,15 @@ import { useEffect, useState } from 'react';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 export default function MapPage() {
-  const [apiKey, setApiKey] = useState<string | undefined>(undefined);
-  const [loadingKey, setLoadingKey] = useState(true);
+  // No API key needed for basic Google Maps place search iframe
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Access environment variable on the client side
-    const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (key) {
-      setApiKey(key);
-    } else {
-      console.error("Google Maps API Key (NEXT_PUBLIC_GOOGLE_MAPS_API_KEY) is not configured in .env file or Vercel environment variables.");
-    }
-    setLoadingKey(false);
+    // Simulate loading if needed, or just set to false
+    setLoading(false);
   }, []);
 
-  if (loadingKey) {
+  if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-15rem)] py-12">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -28,23 +22,10 @@ export default function MapPage() {
     );
   }
 
-  if (!apiKey) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-15rem)] py-12 text-center">
-        <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-        <p className="text-destructive text-xl font-semibold">Map cannot be loaded.</p>
-        <p className="text-muted-foreground mt-2">
-          The Google Maps API Key is missing or invalid.
-          <br />
-          Please ensure NEXT_PUBLIC_GOOGLE_MAPS_API_KEY is set correctly.
-        </p>
-      </div>
-    );
-  }
-
   // Default search query for hospitals
   const defaultQuery = "Hospitals in India";
-  const mapSrc = `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${encodeURIComponent(defaultQuery)}&zoom=5`;
+  // API key is not strictly required in the URL for a simple place embed
+  const mapSrc = `https://www.google.com/maps/embed/v1/place?q=${encodeURIComponent(defaultQuery)}&zoom=5`;
 
   return (
     <div className="space-y-8 py-8">

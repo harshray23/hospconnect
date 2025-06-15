@@ -1,13 +1,16 @@
 
-import type { Timestamp, GeoPoint } from 'firebase/firestore';
+// Removed: import type { Timestamp, GeoPoint } from 'firebase/firestore';
+
+// Using native Date or ISO string for timestamps now
+// Using a simpler object for coordinates if needed, or just address string
 
 export interface HospitalLocation {
-  coordinates?: GeoPoint; // For Firestore GeoPoint
+  coordinates?: { latitude: number; longitude: number }; // Simple coordinate object
   address: string;
 }
 
 export interface Hospital {
-  id: string; // Firestore document ID
+  id: string; // Could be any unique string ID
   name: string;
   location: HospitalLocation;
   contact?: string;
@@ -19,25 +22,25 @@ export interface Hospital {
     ventilator: { total: number; available: number };
   };
   emergencyAvailable?: boolean;
-  lastUpdated?: Timestamp | string; // Firestore Timestamp or ISO string for updates
+  lastUpdated?: string | Date; // ISO string or Date object
   imageUrl?: string;
   rating?: number;
-  dataAiHint?: string; // For placeholder image generation
+  dataAiHint?: string; 
 }
 
 export interface TreatmentLog {
   note: string;
-  timestamp: Timestamp | string; // Firestore Timestamp or ISO string
+  timestamp: string | Date; // ISO string or Date object
 }
 
 export interface Medication {
   name: string;
   dosage: string;
-  schedule: string; // Could be more structured, e.g., { time: string, frequency: string }
+  schedule: string; 
 }
 
 export interface PatientRecord {
-  id: string; // Firestore document ID (auto-generated when hospital creates record)
+  id: string; 
   name: string;
   phone?: string;
   assignedHospital?: string; // hospitalId
@@ -48,45 +51,41 @@ export interface PatientRecord {
 }
 
 export interface Feedback {
-  id: string; // Firestore document ID (auto-generated)
+  id: string; 
   hospitalId: string;
-  hospitalName?: string; // Denormalized
-  // patientId might now refer to an anonymous identifier or be optional if users are not logged in
-  patientId?: string; // Firebase Auth UID of the user submitting feedback (if they choose to identify, or if this is admin-entered)
-  name?: string; // Optional: name of person giving feedback if not logged in
-  email?: string; // Optional: email of person giving feedback if not logged in
+  hospitalName?: string; 
+  patientId?: string; // Could be a mock user ID or anonymous identifier
+  name?: string; 
+  email?: string; 
   rating: number; // 1-5
   comment: string;
-  submittedAt: Timestamp | string;
+  submittedAt: string | Date; // ISO string or Date object
 }
 
 export interface Complaint {
-  id: string; // Firestore document ID (auto-generated)
-  hospitalId?: string; // Optional
-  hospitalName?: string; // Denormalized
-  // patientId might now refer to an anonymous identifier or be optional
-  patientId?: string; // Firebase Auth UID of the user submitting (if they choose to identify, or if this is admin-entered)
-  name?: string; // Optional: name of person making complaint if not logged in
-  email?: string; // Optional: email of person making complaint if not logged in
+  id: string; 
+  hospitalId?: string; 
+  hospitalName?: string; 
+  patientId?: string; 
+  name?: string; 
+  email?: string; 
   issue: string;
   status: 'pending' | 'in_progress' | 'resolved' | 'escalated' | string;
-  createdAt: Timestamp | string;
+  createdAt: string | Date; // ISO string or Date object
   escalationLevel?: 'local' | 'state' | string;
   ticketId?: string;
 }
 
-// Role 'patient' might be deprecated for login, but kept if hospitals manage "patient" type users in their system.
-// For login purposes, only 'hospital_admin' and 'platform_admin' are primary.
 export type UserRole = 'patient' | 'hospital_admin' | 'platform_admin' | 'health_department_official' | '';
 
 export interface UserProfile {
-  uid: string; // Firebase Auth UID
-  name: string; // For hospital_admin, this is the contact person's name.
+  uid: string; // Mock UID
+  name: string; 
   email: string | null;
   role: UserRole;
-  hospitalId?: string; // If role is 'hospital_admin', this links to the hospital (e.g., hospital's name or a dedicated ID)
+  hospitalId?: string; 
   profilePictureUrl?: string;
-  createdAt: Timestamp | string;
+  createdAt: string | Date; // ISO string or Date object
 }
 
 export interface BedAvailabilityData {
@@ -98,14 +97,14 @@ export interface BedAvailabilityData {
 
 export interface HospitalBedUpdatePayload {
   beds: BedAvailabilityData;
-  lastUpdated: Timestamp;
+  lastUpdated: string | Date; // ISO string or Date object
 }
 
 export interface Announcement {
   id: string;
   title: string;
   content: string;
-  issuedAt: Timestamp | string;
+  issuedAt: string | Date; // ISO string or Date object
   targetAudience: 'all_hospitals' | 'specific_hospitals';
   hospitalIds?: string[];
 }

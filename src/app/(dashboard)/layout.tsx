@@ -14,17 +14,17 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarInset, // Corrected: Added SidebarInset import
 } from '@/components/ui/sidebar';
-import { LayoutDashboard, LogOut, BedDouble, Stethoscope, UserPlus, MessageSquareText, AlertOctagon, Loader2, ShieldAlert, Hospital as HospitalIconLucide, Megaphone } from 'lucide-react'; // Renamed Hospital to HospitalIconLucide, added Megaphone
+import { LayoutDashboard, LogOut, BedDouble, Stethoscope, UserPlus, MessageSquareText, AlertOctagon, Loader2, ShieldAlert, Hospital as HospitalIconLucide, Megaphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { auth, db } from '@/lib/firebase';
-import { onAuthStateChanged, signOut, type User as FirebaseUser } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+// Firebase imports removed: import { auth, db } from '@/lib/firebase';
+// Firebase imports removed: import { onAuthStateChanged, signOut, type User as FirebaseUser } from 'firebase/auth';
+// Firebase imports removed: import { doc, getDoc } from 'firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 
-// Removed patientNavItems
 
 const hospitalAdminNavItems = [
   { href: '/hospital/dashboard', label: 'Overview', icon: <LayoutDashboard /> },
@@ -36,7 +36,7 @@ const hospitalAdminNavItems = [
 ];
 
 const platformAdminNavItems = [
-  { href: '/platform-admin/announcements', label: 'Announcements', icon: <Megaphone /> }, // Changed icon
+  { href: '/platform-admin/announcements', label: 'Announcements', icon: <Megaphone /> },
   // Add more platform admin specific links here like user management, hospital management etc.
 ];
 
@@ -53,77 +53,67 @@ export default function DashboardLayout({
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      if (firebaseUser) {
-        const userDocRef = doc(db, "users", firebaseUser.uid);
+    // Simulate fetching user profile from localStorage (since Firebase is removed)
+    setIsLoadingAuth(true);
+    if (typeof window !== "undefined") {
+      const storedProfile = localStorage.getItem("mockUserProfile");
+      if (storedProfile) {
         try {
-          const userDocSnap = await getDoc(userDocRef);
-          if (userDocSnap.exists()) {
-            const profile = { uid: firebaseUser.uid, ...userDocSnap.data() } as UserProfile;
-            // Ensure only hospital_admin or platform_admin can access dashboard areas
-            if (profile.role === 'hospital_admin' || profile.role === 'platform_admin') {
-              setUserProfile(profile);
-            } else {
-              toast({ title: "Access Denied", description: "You do not have permission to access this dashboard.", variant: "destructive" });
-              await signOut(auth);
-              router.push('/login'); // Or homepage '/'
-            }
+          const profile = JSON.parse(storedProfile) as UserProfile;
+          if (profile.role === 'hospital_admin' || profile.role === 'platform_admin') {
+            setUserProfile(profile);
           } else {
-            console.error("No user profile found for UID:", firebaseUser.uid);
-            toast({ title: "Profile Error", description: "User profile not found.", variant: "destructive" });
-            await signOut(auth);
+            toast({ title: "Access Denied", description: "You do not have permission to access this dashboard.", variant: "destructive" });
+            localStorage.removeItem("mockUserProfile");
             router.push('/login');
           }
-        } catch (error) {
-            console.error("Error fetching user profile:", error);
-            toast({ title: "Error", description: "Could not load user profile.", variant: "destructive" });
-            await signOut(auth);
-            router.push('/login');
+        } catch (e) {
+          console.error("Error parsing mockUserProfile from localStorage", e);
+          localStorage.removeItem("mockUserProfile");
+          router.push('/login');
         }
       } else {
-        setUserProfile(null);
-        router.push('/login');
+        // No mock profile found, redirect to login
+        // Only redirect if not already on a public-ish page or login page itself
+        if (!pathname.startsWith('/login') && !pathname.startsWith('/register')) {
+             router.push('/login');
+        }
       }
-      setIsLoadingAuth(false);
-    });
-
-    return () => unsubscribe();
-  }, [router, toast]);
+    }
+    setIsLoadingAuth(false);
+  }, [pathname, router, toast]);
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      toast({ title: "Logged Out", description: "You have been successfully logged out." });
-      router.push('/login');
-    } catch (error) {
-      console.error("Logout error:", error);
-      toast({ title: "Logout Error", description: "Failed to log out. Please try again.", variant: "destructive" });
+    // Simulate logout
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("mockUserProfile");
     }
+    setUserProfile(null);
+    toast({ title: "Logged Out (Simulated)", description: "You have been successfully logged out." });
+    router.push('/login');
   };
   
   const navItems = useMemo(() => {
     if (!userProfile) return [];
-    // Removed 'patient' case
     switch (userProfile.role) {
       case 'hospital_admin':
         return hospitalAdminNavItems;
       case 'platform_admin':
         return platformAdminNavItems;
       default:
-        return []; // Should not happen if access control in useEffect is correct
+        return []; 
     }
   }, [userProfile]);
 
   const baseDashboardPath = useMemo(() => {
-     if (!userProfile) return "/login"; // Default to login if no profile
-     // Removed 'patient' case
+     if (!userProfile) return "/login"; 
      switch (userProfile.role) {
       case 'hospital_admin':
         return '/hospital/dashboard';
       case 'platform_admin':
         return '/platform-admin/announcements';
       default:
-        return "/login"; // Fallback to login
+        return "/login"; 
     }
   }, [userProfile]);
 
@@ -137,17 +127,37 @@ export default function DashboardLayout({
     );
   }
 
-  if (!userProfile) {
+  // If not loading and no user profile, and not on login/register, show access denied.
+  // This check can be more robust based on public/private routes.
+  if (!userProfile && !pathname.startsWith('/login') && !pathname.startsWith('/register')) {
     return (
          <div className="flex flex-col justify-center items-center min-h-screen">
             <ShieldAlert className="h-16 w-16 text-destructive mb-4"/>
             <p className="text-xl mb-2">Access Denied</p>
-            <p className="text-muted-foreground mb-6">You need to be logged in as hospital staff to view this page.</p>
+            <p className="text-muted-foreground mb-6">You need to be logged in as staff to view this page.</p>
             <Button asChild>
                 <Link href="/login">Go to Login</Link>
             </Button>
         </div>
     );
+  }
+  
+  // If userProfile exists or on login/register page, render the layout.
+  // This ensures login/register pages are accessible without a profile.
+  if (!userProfile && (pathname.startsWith('/login') || pathname.startsWith('/register'))) {
+    return <>{children}</>; // Render children directly for auth pages if no profile (to show login/register form)
+  }
+  
+  if (!userProfile) {
+      // This case should ideally be caught by the isLoadingAuth or the redirect in useEffect
+      // But as a fallback, if still no profile and not an auth page, show loader or redirect.
+      // For now, let's assume useEffect handles redirection.
+      return (
+         <div className="flex justify-center items-center min-h-screen">
+           <Loader2 className="h-12 w-12 animate-spin text-primary" />
+           <p className="ml-4 text-lg">Redirecting...</p>
+         </div>
+      );
   }
 
 
@@ -159,7 +169,7 @@ export default function DashboardLayout({
             <div className="flex items-center gap-3">
               <Avatar className="h-10 w-10">
                 <AvatarImage src={userProfile.profilePictureUrl || `https://placehold.co/100x100.png?text=${userProfile.name?.[0]}`} alt={userProfile.name || 'User'} data-ai-hint="profile avatar hospital logo" />
-                <AvatarFallback>{userProfile.name ? userProfile.name.substring(0,2).toUpperCase() : 'HA'}</AvatarFallback>
+                <AvatarFallback>{userProfile.name ? userProfile.name.substring(0,2).toUpperCase() : 'SA'}</AvatarFallback>
               </Avatar>
               <div className="group-data-[collapsible=icon]:hidden">
                 <p className="font-semibold text-sm">{userProfile.name}</p>
@@ -193,7 +203,6 @@ export default function DashboardLayout({
               <LogOut className="h-5 w-5 mr-2 group-data-[collapsible=icon]:mr-0" />
               <span className="group-data-[collapsible=icon]:hidden">Logout</span>
             </Button>
-            {/* Link to Platform Admin area for users with platform_admin role */}
             {userProfile.role === 'platform_admin' && pathname.startsWith('/hospital') && (
                  <Button variant="link" className="w-full justify-start group-data-[collapsible=icon]:justify-center text-xs mt-2" asChild>
                     <Link href="/platform-admin/announcements">
@@ -202,8 +211,6 @@ export default function DashboardLayout({
                     </Link>
                  </Button>
             )}
-             {/* Link for hospital_admin to switch to platform admin, if they also have platform_admin capabilities (this is unusual, typically distinct roles) */}
-             {/* Or, if a hospital admin wants to see what platform admins see (e.g. announcements) */}
             {userProfile.role === 'hospital_admin' && (
                  <Button variant="link" className="w-full justify-start group-data-[collapsible=icon]:justify-center text-xs mt-2" asChild>
                     <Link href="/platform-admin/announcements"> 

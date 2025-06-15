@@ -20,9 +20,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, ImageUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { auth, db } from "@/lib/firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+// Firebase imports removed: import { auth, db } from "@/lib/firebase";
+// Firebase imports removed: import { createUserWithEmailAndPassword } from "firebase/auth";
+// Firebase imports removed: import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import type { UserProfile } from "@/lib/types";
 
 
@@ -67,52 +67,51 @@ export default function RegistrationForm() {
     setIsLoading(true);
     let profilePictureUrl: string | undefined = undefined;
 
-    // Placeholder: Profile picture upload logic would go here
     if (values.profilePicture && values.profilePicture.length > 0) {
       const file = values.profilePicture[0];
-      // TODO: Implement Firebase Storage upload here.
-      // For now, just log it or use a placeholder
-      console.log("Profile picture selected (actual upload needed):", file.name);
-      // profilePictureUrl = "https://placehold.co/100x100.png"; // Example placeholder
+      console.log("Profile picture selected (simulated upload):", file.name);
+      // Simulate upload for now
+      profilePictureUrl = "https://placehold.co/100x100.png?text=Logo";
     }
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
+      // Simulate user creation and profile storage
+      console.log("Simulating user registration with Firebase Auth for:", values.email);
+      // const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password); // Firebase removed
+      // const user = userCredential.user; // Firebase removed
+
+      const mockUser = { uid: `mock_${Date.now()}`, email: values.email }; // Mock user object
 
       const userProfileData: Omit<UserProfile, 'uid' | 'createdAt'> = {
         name: values.contactPersonName,
-        email: user.email,
-        role: "hospital_admin",
+        email: mockUser.email,
+        role: "hospital_admin", // Default role for hospital registration
         hospitalId: values.hospitalName, 
         profilePictureUrl: profilePictureUrl,
       };
       
-      await setDoc(doc(db, "users", user.uid), {
-        ...userProfileData,
-        createdAt: serverTimestamp(),
-      });
+      console.log("Simulating storing user profile in Firestore for UID:", mockUser.uid, userProfileData);
+      // await setDoc(doc(db, "users", user.uid), { // Firebase removed
+      //   ...userProfileData,
+      //   createdAt: serverTimestamp(), // Firebase removed
+      // });
 
-      // TODO: Potentially create/update a document in a 'hospitals' collection here too
+      // Simulate a delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
 
       toast({
-        title: "Hospital Registration Successful",
+        title: "Hospital Registration Successful (Simulated)",
         description: `${values.hospitalName} is registered. Please login. Referral code (if any): ${ref || 'none'}`,
         variant: "default",
       });
       router.push('/login');
       form.reset();
     } catch (error: any) {
-      let errorMessage = "Could not create account. Please try again.";
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = "This email address is already in use for a contact person.";
-      } else if (error.code === 'auth/weak-password') {
-        errorMessage = "The password is too weak.";
-      }
-      console.error("Registration error:", error);
+      console.error("Simulated registration error:", error);
       toast({
-        title: "Registration Failed",
-        description: errorMessage,
+        title: "Registration Failed (Simulated)",
+        description: "Could not create account. Please try again.",
         variant: "destructive",
       });
     } finally {
