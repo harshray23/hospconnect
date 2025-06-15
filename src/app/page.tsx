@@ -44,12 +44,12 @@ export default function HomePage() {
           </p>
           <div className="space-x-4">
             <Button size="lg" asChild className="shadow-lg hover:shadow-xl transition-shadow">
-              <Link href="/search">
+              <Link href="/map"> {/* << UPDATED LINK HERE */}
                 <Search className="mr-2 h-5 w-5" /> Find a Hospital
               </Link>
             </Button>
             <Button size="lg" variant="secondary" asChild className="shadow-lg hover:shadow-xl transition-shadow">
-              <Link href="/register"> 
+              <Link href="/register">
                 <HospitalIcon className="mr-2 h-5 w-5" /> Register Your Hospital
               </Link>
             </Button>
