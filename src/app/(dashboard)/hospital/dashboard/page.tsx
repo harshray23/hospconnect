@@ -26,15 +26,15 @@ const mockHospitalAnnouncements: Announcement[] = [
 
 export default function HospitalDashboardPage() {
   const stats = [
-    { title: "Total Beds", value: "150", icon: <BedDouble className="h-6 w-6 text-primary" />, color: "text-primary" },
-    { title: "Available ICU Beds", value: "8", icon: <BedDouble className="h-6 w-6 text-destructive" />, color: "text-destructive" },
-    { title: "Today's Bookings", value: "25", icon: <BookOpenCheck className="h-6 w-6 text-green-500" />, color: "text-green-500" },
-    { title: "Admitted Patients", value: "120", icon: <UserPlus className="h-6 w-6 text-blue-500" />, color: "text-blue-500" }, // New Stat
+    { title: "Total Beds", value: "210", icon: <BedDouble className="h-6 w-6 text-primary" />, color: "text-primary" },
+    { title: "Available ICU Beds", value: "6", icon: <BedDouble className="h-6 w-6 text-destructive" />, color: "text-destructive" },
+    { title: "Today's Bookings", value: "18", icon: <BookOpenCheck className="h-6 w-6 text-green-500" />, color: "text-green-500" },
+    { title: "Admitted Patients", value: "175", icon: <UserPlus className="h-6 w-6 text-blue-500" />, color: "text-blue-500" },
   ];
 
   const quickActions = [
     { label: "Update Bed Availability", href: "/hospital/beds", icon: <BedDouble className="mr-2 h-4 w-4" /> },
-    { label: "Manage Admissions", href: "/hospital/admissions", icon: <UserPlus className="mr-2 h-4 w-4" /> }, // New Action
+    { label: "Manage Admissions", href: "/hospital/admissions", icon: <UserPlus className="mr-2 h-4 w-4" /> },
     { label: "View Recent Bookings", href: "/hospital/bookings", icon: <BookOpenCheck className="mr-2 h-4 w-4" /> },
     { label: "Respond to Feedback", href: "/hospital/feedback", icon: <MessageSquareHeart className="mr-2 h-4 w-4" /> },
     { label: "Manage Complaints", href: "/hospital/complaints", icon: <AlertTriangle className="mr-2 h-4 w-4" /> },
@@ -59,7 +59,7 @@ export default function HospitalDashboardPage() {
             <CardContent>
               <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
               <p className="text-xs text-muted-foreground">
-                +2 from yesterday {/* Placeholder comparison data */}
+                +5 since last update {/* Placeholder comparison data */}
               </p>
             </CardContent>
           </Card>
@@ -117,11 +117,11 @@ export default function HospitalDashboardPage() {
           <CardContent>
             {/* Placeholder for activity feed */}
             <ul className="space-y-3 text-sm">
-              <li className="flex items-center"><BookOpenCheck className="h-4 w-4 mr-2 text-green-500"/> New booking: John P. - General Ward</li>
-              <li className="flex items-center"><UserPlus className="h-4 w-4 mr-2 text-blue-500"/> Patient 'Alice B.' admitted to ICU.</li>
-              <li className="flex items-center"><AlertTriangle className="h-4 w-4 mr-2 text-destructive"/> ICU Bed 3 capacity nearing full.</li>
-              <li className="flex items-center"><MessageSquareHeart className="h-4 w-4 mr-2 text-yellow-500"/> New patient feedback received.</li>
-              <li className="flex items-center"><BedDouble className="h-4 w-4 mr-2 text-primary"/> Oxygen bed availability updated.</li>
+              <li className="flex items-center"><BookOpenCheck className="h-4 w-4 mr-2 text-green-500"/> New booking: Michael L. - Oxygen Bed</li>
+              <li className="flex items-center"><UserPlus className="h-4 w-4 mr-2 text-blue-500"/> Patient 'Sarah K.' admitted to General Ward.</li>
+              <li className="flex items-center"><AlertTriangle className="h-4 w-4 mr-2 text-destructive"/> Ventilator Bed 2 maintenance scheduled.</li>
+              <li className="flex items-center"><MessageSquareHeart className="h-4 w-4 mr-2 text-yellow-500"/> Positive feedback received for OPD services.</li>
+              <li className="flex items-center"><BedDouble className="h-4 w-4 mr-2 text-primary"/> ICU bed availability updated by Dr. Smith.</li>
             </ul>
           </CardContent>
         </Card>
